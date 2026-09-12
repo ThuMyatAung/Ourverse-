@@ -3,113 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Solar System & Mythological Asteroids Observatory</title>
+    <title>Cosmic Observatory: Solar System & Constellations 3D</title>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; overflow: hidden; background: #010206; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        #canvas-container { width: 100vw; height: 100vh; }
-        
-        /* Top Navigation & Controls */
+        body { margin: 0; overflow: hidden; background: #010206; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #fff; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+
+        /* Top Header Control Bar */
         #top-bar {
             position: absolute; top: 16px; left: 16px; z-index: 100;
-            background: rgba(10, 15, 26, 0.8); backdrop-filter: blur(12px);
-            padding: 12px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);
-            display: flex; gap: 10px; align-items: center; box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(14px);
+            padding: 12px 18px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.15);
+            display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.7);
         }
-        #top-bar h1 { margin: 0; font-size: 15px; color: #64b5f6; font-weight: 600; }
-        select, button {
-            padding: 8px 12px; background: #1e293b; color: #fff;
-            border: 1px solid #475569; border-radius: 8px; font-size: 13px;
+        .mode-toggle { display: flex; background: #1e293b; border-radius: 8px; padding: 3px; }
+        .mode-btn {
+            background: transparent; border: none; color: #94a3b8; padding: 7px 14px;
+            font-size: 12.5px; border-radius: 6px; cursor: pointer; transition: 0.25s; font-weight: 500;
+        }
+        .mode-btn.active { background: #0284c7; color: #ffffff; font-weight: 600; }
+        
+        select, .action-btn {
+            padding: 7px 12px; background: #1e293b; color: #fff;
+            border: 1px solid #475569; border-radius: 8px; font-size: 12.5px;
             cursor: pointer; outline: none; transition: 0.2s;
         }
-        select:focus, button:hover { border-color: #64b5f6; background: #243248; }
+        select:focus, .action-btn:hover { border-color: #38bdf8; background: #243248; }
 
-        /* Bottom Floating HUD Panel (Translucent Glassmorphism) */
-        #bottom-hud {
+        /* Detail Modal Popup (Glassmorphism & Rich Storytelling) */
+        #story-modal {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(1, 4, 10, 0.65); backdrop-filter: blur(8px);
+            z-index: 200; display: none; justify-content: flex-end; align-items: stretch;
+            animation: fadeIn 0.35s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .modal-content-drawer {
+            width: 100%; max-width: 520px; background: rgba(13, 20, 36, 0.92);
+            border-left: 1px solid rgba(255, 255, 255, 0.15); height: 100%;
+            padding: 30px 26px; overflow-y: auto; box-shadow: -15px 0 50px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column; gap: 18px; transform: translateX(0);
+            animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        .modal-close-row { display: flex; justify-content: space-between; align-items: center; }
+        .modal-badge {
+            background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; text-transform: uppercase;
+        }
+        .modal-close-btn {
+            background: rgba(255,255,255,0.08); border: none; color: #cbd5e1; font-size: 20px;
+            width: 34px; height: 34px; border-radius: 50%; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; transition: 0.2s;
+        }
+        .modal-close-btn:hover { background: rgba(239, 68, 68, 0.3); color: #ef4444; }
+
+        .story-header h2 { margin: 0; font-size: 24px; color: #f8fafc; }
+        .story-header p { margin: 4px 0 0 0; font-size: 13px; color: #94a3b8; }
+
+        .story-card {
+            background: rgba(255, 255, 255, 0.04); border-radius: 12px;
+            padding: 16px; border-left: 4px solid #38bdf8; line-height: 1.65; font-size: 13.5px;
+        }
+        .story-card.myth { border-left-color: #f59e0b; }
+        .story-card.discovery { border-left-color: #a855f7; }
+        .story-card h3 { margin: 0 0 8px 0; font-size: 14.5px; display: flex; align-items: center; gap: 6px; }
+        .story-card.myth h3 { color: #fcd34d; }
+        .story-card.discovery h3 { color: #d8b4fe; }
+        .story-card p { margin: 0; color: #cbd5e1; }
+
+        /* Quick Info Overlay for Constellations */
+        #const-quick-info {
             position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 820px; z-index: 100;
-            background: rgba(10, 16, 28, 0.85); backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px;
-            padding: 20px 24px; color: #e2e8f0; display: none;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8); animation: slideUp 0.3s ease-out;
+            background: rgba(10, 16, 28, 0.85); backdrop-filter: blur(12px);
+            padding: 14px 22px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);
+            display: none; align-items: center; gap: 16px; z-index: 100;
         }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translate(-50%, 20px); }
-            to { opacity: 1; transform: translate(-50%, 0); }
-        }
-        .hud-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .hud-title-area h2 { margin: 0; font-size: 18px; color: #ffffff; }
-        .hud-badge {
-            display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
-            font-weight: 600; margin-top: 4px; background: rgba(100, 181, 246, 0.2); color: #64b5f6;
-        }
-        .close-btn {
-            background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; padding: 0 4px;
-        }
-        .close-btn:hover { color: #fff; }
-
-        .hud-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px; font-size: 12.5px; line-height: 1.5;
-        }
-        .hud-box {
-            background: rgba(255, 255, 255, 0.04); padding: 10px 12px;
-            border-radius: 8px; border-left: 3px solid #38bdf8;
-        }
-        .hud-box.myth { border-left-color: #f59e0b; }
-        .hud-box.history { border-left-color: #a855f7; grid-column: span 2; }
-        .hud-box b { color: #93c5fd; display: inline-block; margin-bottom: 2px; }
-        .hud-box.myth b { color: #fcd34d; }
-        .hud-box.history b { color: #d8b4fe; }
-
-        @media (max-width: 600px) {
-            .hud-box.history { grid-column: span 1; }
-            #bottom-hud { width: 95%; bottom: 12px; padding: 14px; }
-        }
+        #const-quick-info span { font-size: 14px; font-weight: 500; color: #38bdf8; }
     </style>
-    <!-- Three.js and OrbitControls -->
+    <!-- Three.js, OrbitControls, and Tween.js for cinematic animations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
 </head>
 <body>
 
     <div id="top-bar">
-        <h1>Cosmic Observatory</h1>
+        <div class="mode-toggle">
+            <button class="mode-btn active" id="btn-mode-solar">☀️ Solar System</button>
+            <button class="mode-btn" id="btn-mode-const">🌌 Constellations (ညကောင်းကင်)</button>
+        </div>
+
         <select id="target-selector">
-            <option value="Overview">-- Overview (အဝေးမှ အပြည့်အစုံ ကြည့်မည်) --</option>
-            <optgroup label="Major Planets (အဓိက ဂြိုဟ်ကြီးများ)" id="planets-opt"></optgroup>
-            <optgroup label="Deity Asteroids (နတ်ဘုရားအမည်ခံ ဥက္ကာခဲများ)" id="asteroids-opt"></optgroup>
+            <option value="Overview">-- Overview (ခြုံငုံကြည့်မည်) --</option>
+            <optgroup label="Major Planets" id="planets-opt"></optgroup>
+            <optgroup label="Deity Asteroids" id="asteroids-opt"></optgroup>
+            <optgroup label="Constellations" id="constellations-opt" style="display:none;"></optgroup>
         </select>
-        <button id="reset-cam-btn">Reset View</button>
+
+        <button class="action-btn" id="reset-cam-btn">Reset View</button>
     </div>
 
-    <!-- Bottom Translucent Information HUD -->
-    <div id="bottom-hud">
-        <div class="hud-header">
-            <div class="hud-title-area">
-                <h2 id="hud-name">Object Name</h2>
-                <div class="hud-badge" id="hud-type">Asteroid / Main Belt</div>
+    <!-- Constellation Quick Description Bar -->
+    <div id="const-quick-info">
+        <span id="const-quick-name">Orion</span>
+        <button class="action-btn" id="btn-show-const-desc" style="background:#0284c7; border:none;">Description ဖတ်မည်</button>
+    </div>
+
+    <!-- Full Story & Inspection Modal -->
+    <div id="story-modal">
+        <div class="modal-content-drawer">
+            <div class="modal-close-row">
+                <span class="modal-badge" id="modal-badge">Planet</span>
+                <button class="modal-close-btn" id="modal-close">&times;</button>
             </div>
-            <button class="close-btn" id="hud-close">&times;</button>
-        </div>
-        <div class="hud-grid">
-            <div class="hud-box">
-                <b>ရှာဖွေတွေ့ရှိမှု (Discovery)</b><br>
-                ခုနှစ် - <span id="hud-year"></span><br>
-                တွေ့ရှိသူ - <span id="hud-discoverer"></span>
+            
+            <div class="story-header">
+                <h2 id="modal-title">Jupiter</h2>
+                <p id="modal-subtitle">ကြာသပတေးဂြိုဟ် • 5.20 AU • Orbit: 11.86 Years</p>
             </div>
-            <div class="hud-box">
-                <b>ပတ်လမ်းဆိုင်ရာ အချက်အလက် (Orbital Data)</b><br>
-                နေမှ အကွာအဝေး - <span id="hud-orbit"></span><br>
-                ကြာချိန် - <span id="hud-period"></span>
+
+            <div class="story-card myth">
+                <h3>📖 အမည်ပေးဖြစ်ပုံနှင့် ဒဏ္ဍာရီဇာတ်လမ်း (Mythology)</h3>
+                <p id="modal-myth">ဒဏ္ဍာရီအကြောင်းအရာများ...</p>
             </div>
-            <div class="hud-box myth">
-                <b>နတ်ဘုရားဒဏ္ဍာရီ (Mythology)</b><br>
-                <span id="hud-myth"></span>
+
+            <div class="story-card discovery">
+                <h3>🔭 ရှာဖွေတွေ့ရှိမှုနှင့် သမိုင်းဇာတ်လမ်း (Discovery Tale)</h3>
+                <p id="modal-discovery">ရှာဖွေတွေ့ရှိခဲ့ပုံ သမိုင်းကြောင်း...</p>
             </div>
-            <div class="hud-box history">
-                <b>သမိုင်းမှတ်တိုင်နှင့် မစ်ရှင်များ (History & NASA Missions)</b><br>
-                <span id="hud-history"></span>
+
+            <div class="story-card">
+                <h3 style="color:#67e8f9;">🛰️ အာကာသစူးစမ်းလေ့လာရေး မှတ်တိုင် (NASA Missions)</h3>
+                <p id="modal-missions">မစ်ရှင်ဆိုင်ရာ အချက်အလက်များ...</p>
             </div>
         </div>
     </div>
@@ -117,11 +146,9 @@
     <div id="canvas-container"></div>
 
     <script>
-        // ၁။ SCENE, CAMERA, RENDERER
+        // ၁။ SCENE & SETUP
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 80000);
-        camera.position.set(0, 420, 650);
-
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -130,193 +157,264 @@
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.minDistance = 1;
-        controls.maxDistance = 12000;
 
-        // Lighting
-        scene.add(new THREE.AmbientLight(0x222838));
-        const sunLight = new THREE.PointLight(0xffffff, 2.6, 20000, 0.4);
-        scene.add(sunLight);
+        // Global Scene Groups
+        const solarGroup = new THREE.Group();
+        const constellationGroup = new THREE.Group();
+        scene.add(solarGroup);
+        scene.add(constellationGroup);
+        constellationGroup.visible = false;
 
-        // ၂။ PROCEDURAL NASA-STYLE TEXTURE GENERATOR
-        // NASA မှ ရိုက်ကူးထားသည့် ချိုင့်ခွက် (craters) များနှင့် မညီညာသော ကျောက်မြေသားပုံစံ ထုတ်ပေးခြင်း
-        function generateNasaTexture(type, baseColor, detailColor, hasBrightSpots = false) {
+        // Default Overview Camera Settings
+        const OVERVIEW_CAM_POS = new THREE.Vector3(0, 480, 750);
+        const OVERVIEW_TARGET = new THREE.Vector3(0, 0, 0);
+        camera.position.copy(OVERVIEW_CAM_POS);
+        controls.target.copy(OVERVIEW_TARGET);
+
+        // Lights
+        solarGroup.add(new THREE.AmbientLight(0x222838));
+        const sunLight = new THREE.PointLight(0xffffff, 2.6, 25000, 0.4);
+        solarGroup.add(sunLight);
+
+        // Texture Generator Helper
+        function generateProceduralTexture(type, baseColor, detailColor, brightSpot = false) {
             const canvas = document.createElement('canvas');
             canvas.width = 1024; canvas.height = 512;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = baseColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Regolith Noise & Cratering
-            for (let i = 0; i < 900; i++) {
-                const x = Math.random() * canvas.width;
-                const y = Math.random() * canvas.height;
-                const r = Math.random() * (type === 'gas' ? 140 : 18);
-                
+            for (let i = 0; i < 700; i++) {
                 ctx.fillStyle = detailColor;
                 ctx.globalAlpha = 0.09;
+                const x = Math.random() * canvas.width, y = Math.random() * canvas.height;
+                const r = Math.random() * (type === 'gas' ? 140 : 15);
                 ctx.beginPath();
-                if (type === 'gas') {
-                    ctx.rect(0, y, canvas.width, Math.random() * 25);
-                } else {
-                    ctx.arc(x, y, r, 0, Math.PI * 2);
-                }
-                ctx.fill();
-
-                // Craters with shadows
-                if (type === 'asteroid' && Math.random() > 0.6) {
-                    ctx.fillStyle = "#000000";
-                    ctx.globalAlpha = 0.15;
-                    ctx.beginPath();
-                    ctx.arc(x + 2, y + 2, r * 0.7, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-
-            // Ceres' Occator Crater Bright Spot (ဆားတွင်း အဖြူစက်များ)
-            if (hasBrightSpots) {
-                ctx.fillStyle = "#ffffff";
-                ctx.globalAlpha = 0.85;
-                ctx.beginPath();
-                ctx.arc(512, 256, 12, 0, Math.PI * 2);
+                if (type === 'gas') ctx.rect(0, y, canvas.width, Math.random() * 20);
+                else ctx.arc(x, y, r, 0, Math.PI * 2);
                 ctx.fill();
             }
-
+            if (brightSpot) {
+                ctx.fillStyle = "#ffffff"; ctx.globalAlpha = 0.9;
+                ctx.beginPath(); ctx.arc(512, 256, 14, 0, Math.PI * 2); ctx.fill();
+            }
             return new THREE.CanvasTexture(canvas);
         }
 
-        // Distance formula (Semi-Logarithmic)
-        function getVisualDistance(au) {
-            return 82 * Math.pow(au, 0.52);
-        }
-
-        // Label Generator (Canvas Sprite)
-        function createLabel(text, color = "#ffffff") {
+        function createLabelSprite(text, color = "#ffffff") {
             const canvas = document.createElement('canvas');
             canvas.width = 256; canvas.height = 64;
             const ctx = canvas.getContext('2d');
             ctx.font = 'bold 22px sans-serif';
             ctx.fillStyle = color;
             ctx.textAlign = 'center';
-            ctx.fillText(text, 128, 42);
-            
+            ctx.fillText(text, 128, 40);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
-            sprite.scale.set(22, 5.5, 1);
+            sprite.scale.set(24, 6, 1);
             return sprite;
         }
 
-        // ၃။ ASTRONOMICAL & HISTORICAL DATA SET (20+ Deities Asteroids & Planets)
+        function getVisualDistance(au) { return 82 * Math.pow(au, 0.52); }
+
+        // ၂။ SOLAR SYSTEM DATA (Detailed Stories & Myths)
         const planetsData = [
-            { name: "Mercury", myan: "ဗုဒ္ဓဟူးဂြိုဟ်", a: 0.387, e: 0.205, radius: 2.2, base: "#757575", detail: "#374151", period: "88 ရက်", year: "ရှေးခေတ်", discoverer: "လူသိများပြီးဖြစ်", desc: "နေနှင့် အနီးဆုံး အပူချိန်လွန်ကဲသော ဂြိုဟ်။ NASA MESSENGER ယာဉ် လေ့လာခဲ့သည်။", myth: "ရိုမန် ကုန်သွယ်ရေးနှင့် သတင်းပို့နတ်ဘုရား (မာကျူရီ)" },
-            { name: "Venus", myan: "သောကြာဂြိုဟ်", a: 0.723, e: 0.007, radius: 4.5, base: "#eab308", detail: "#ca8a04", period: "224.7 ရက်", year: "ရှေးခေတ်", discoverer: "လူသိများပြီးဖြစ်", desc: "အလွန်ထူထပ်သော ကာဗွန်ဒိုင်အောက်ဆိုဒ် လေထုနှင့် ဖန်လုံအိမ်အာနိသင် အပြင်းထန်ဆုံး ဂြိုဟ်။", myth: "ရိုမန် အချစ်နှင့် အလှအပနတ်ဘုရားမ (ဗီးနပ်စ်)" },
-            { name: "Earth", myan: "ကမ္ဘာဂြိုဟ်", a: 1.000, e: 0.017, radius: 4.8, base: "#2563eb", detail: "#16a34a", period: "365.2 ရက်", year: "-", discoverer: "လူသားများ၏ မွေးရပ်မြေ", desc: "မျက်နှာပြင်တွင် အရည်အသွေးရှိသော ရေထုနှင့် သက်ရှိများ ရှင်သန်နိုင်သည့် တစ်ခုတည်းသော ဂြိုဟ်။", myth: "ဂရိ/ရိုမန် မြေကမ္ဘာစောင့်နတ်ဘုရားမ (ဂိုင်ယာ/တာရာ)", hasClouds: true },
-            { name: "Mars", myan: "အင်္ဂါဂြိုဟ်", a: 1.524, e: 0.093, radius: 3.2, base: "#dc2626", detail: "#991b1b", period: "687 ရက်", year: "ရှေးခေတ်", discoverer: "လူသိများပြီးဖြစ်", desc: "သံအောက်ဆိုဒ်များ ဖုံးလွှမ်းနေသော ဂြိုဟ်နီကြီး။ NASA Perseverance နှင့် Curiosity ယာဉ်များ ရှိနေသည်။", myth: "ရိုမန် စစ်ပွဲနတ်ဘုရား (မားစ်)" },
-            { name: "Jupiter", myan: "ကြာသပတေးဂြိုဟ်", a: 5.204, e: 0.048, radius: 13.5, base: "#d97706", detail: "#b45309", period: "11.86 နှစ်", year: "ရှေးခေတ်", discoverer: "လူသိများပြီးဖြစ်", type: "gas", desc: "နေအဖွဲ့အစည်း၏ အကြီးဆုံး ဓာတ်ငွေ့ဧရာမဂြိုဟ်။ မဟာအနီစက်ကြီး (Great Red Spot) ရှိသည်။", myth: "ရိုမန် နတ်ဘုရားတို့၏ ဘုရင် (ဂျူပီတာ / ဇုစ်)" },
-            { name: "Saturn", myan: "စနေဂြိုဟ်", a: 9.582, e: 0.056, radius: 11.0, base: "#fde047", detail: "#ca8a04", period: "29.45 နှစ်", year: "ရှေးခေတ်", discoverer: "လူသိများပြီးဖြစ်", type: "gas", hasRing: true, desc: "ရေခဲနှင့် ကျောက်စများဖြင့် ဖွဲ့စည်းထားသော အလွန်လှပသည့် ကွင်းကြီးများ ပိုင်ဆိုင်သည်။", myth: "ရိုမန် စိုက်ပျိုးရေးနှင့် အချိန်နတ်ဘုရား (Saturnus)" },
-            { name: "Uranus", myan: "ယူရေးနပ်စ်ဂြိုဟ်", a: 19.20, e: 0.046, radius: 7.2, base: "#38bdf8", detail: "#0284c7", period: "84.02 နှစ်", year: "၁၇၈၁", discoverer: "ဝီလျံ ဟာရှယ် (William Herschel)", desc: "ဝင်ရိုး ၉၈ ဒီဂရီ စောင်းလျက် ဘေးတိုက်လှိမ့်ကာ လည်ပတ်နေသော ရေခဲဧရာမဂြိုဟ်။", myth: "ဂရိ ကောင်းကင်ဘုံနတ်ဘုရား (Uranus)" },
-            { name: "Neptune", myan: "နက်ပကျွန်းဂြိုဟ်", a: 30.05, e: 0.010, radius: 7.0, base: "#4f46e5", detail: "#3730a3", period: "164.8 နှစ်", year: "၁၈၄၆", discoverer: "အာဘန်း လီဗဲရီယဲ နှင့် ယိုဟန် ဂဲလ်", desc: "အမြန်ဆုံး မုန်တိုင်းလေပြင်းများ တိုက်ခတ်ရာ အဝေးဆုံး ရေခဲဧရာမဂြိုဟ်။", myth: "ရိုမန် ပင်လယ်စောင့်နတ်ဘုရား (နက်ပကျွန်း / ပိုဆိုင်ဒွန်)" }
+            {
+                name: "Mercury", myan: "ဗုဒ္ဓဟူးဂြိုဟ်", a: 0.387, e: 0.205, radius: 2.2, base: "#78716c", detail: "#44403c", period: "88 ရက်",
+                myth: "ရောမဒဏ္ဍာရီတွင် မာကျူရီ (ဂရိတွင် ဟာမီးစ်) သည် တောင်ပံပါသော ခြေနင်းကိုစီးကာ နတ်ဘုရားများအကြား သတင်းစကားအမြန်ဆုံး သယ်ဆောင်ပေးရသည့် တမန်တော်နတ်ဘုရား ဖြစ်သည်။ ဤဂြိုဟ်သည် နေကို အလျင်မြန်ဆုံး လှည့်ပတ်နေသည်ကို ရှေးလူသားများ သတိပြုမိသဖြင့် အမြန်ဆုံးနတ်ဘုရား မာကျူရီအမည်ကို ပေးခဲ့ကြခြင်း ဖြစ်သည်။",
+                discovery: "မာကျူရီကို ရှေးဗာဗုလုံခေတ်ကတည်းက သတိပြုမိခဲ့ကြသည်။ ၁၆၃၁ ခုနှစ်တွင် ပြင်သစ်နက္ခတ္တပညာရှင် Pierre Gassendi က တယ်လီစကုပ်ဖြင့် နေမျက်နှာပြင်ရှေ့မှ မာကျူရီ ဖြတ်သန်းသွားခြင်း (Transit) ကို သမိုင်းတွင် ပထမဆုံးအကြိမ် တိကျစွာ မှတ်တမ်းတင်နိုင်ခဲ့သည်။",
+                missions: "NASA MESSENGER (၂၀၁၁-၂၀၁၅) ယာဉ်သည် မာကျူရီကို အနီးကပ်လှည့်ပတ်ကာ မျက်နှာပြင်တွင် သံဓာတ်အမြောက်အမြားရှိပြီး ဝင်ရိုးစွန်းချိုင့်ဝှမ်းများ၌ ရေခဲများ တည်ရှိနေကြောင်း ရှာဖွေတွေ့ရှိခဲ့သည်။"
+            },
+            {
+                name: "Venus", myan: "သောကြာဂြိုဟ်", a: 0.723, e: 0.007, radius: 4.5, base: "#ca8a04", detail: "#a16207", period: "224.7 ရက်",
+                myth: "ညနေခင်းနှင့် မနက်မိုးသောက်ချိန် ကောင်းကင်ယံတွင် လမင်းပြီးလျှင် အတောက်ပဆုံးနှင့် အလှပဆုံး လက်ယာရတနာအဖြစ် မြင်တွေ့ရသောကြောင့် ရောမတို့၏ အချစ်နှင့် အလှအပနတ်ဘုရားမ ဗီးနပ်စ် (ဂရိတွင် အက်ဖရိုဒိုက်တီ) ၏ အမည်ကို ဂုဏ်ပြုပေးခဲ့သည်။",
+                discovery: "၁၆၁၀ တွင် ဂယ်လီလီယို (Galileo) က တယ်လီစကုပ်ဖြင့် စတင်ကြည့်ရှုခဲ့ရာ ဗီးနပ်စ်သည် လမင်းကဲ့သို့ လခြမ်းပုံမှ လပြည့်ပုံစံ အဆင့်ဆင့်ပြောင်းလဲသည်ကို တွေ့ရှိခဲ့ပြီး ကမ္ဘာသည် စကြဝဠာ၏ဗဟိုမဟုတ်ဘဲ နေကို လှည့်ပတ်နေကြောင်း သက်သေပြနိုင်ခဲ့သည်။",
+                missions: "ဆိုဗီယက် Venera မစ်ရှင်များသည် ဗီးနပ်စ်မျက်နှာပြင်ပေါ်သို့ ဆင်းသက်ကာ သမိုင်းဝင် ပထမဆုံး ဓာတ်ပုံများကို ရိုက်ကူးခဲ့သည်။ လေထုဖိအား ကမ္ဘာထက် အဆ ၉၀ မြင့်ပြီး ဆာလဖျူရစ်အက်ဆစ် မိုးများ ရွာသွန်းသည်။"
+            },
+            {
+                name: "Earth", myan: "ကမ္ဘာဂြိုဟ်", a: 1.000, e: 0.017, radius: 4.8, base: "#0284c7", detail: "#15803d", period: "365.2 ရက်", hasClouds: true,
+                myth: "ဂရိဒဏ္ဍာရီလာ နတ်ဘုရားအားလုံးနှင့် သက်ရှိတို့၏ မိခင် မြေကမ္ဘာစောင့်နတ်ဘုရားမ 'ဂိုင်ယာ' (Gaia) နှင့် ရောမတို့၏ 'တာရာ' (Terra Mater) ကို အစွဲပြုကာ ခေါ်ဆိုခြင်း ဖြစ်သည်။ အခြားဂြိုဟ်များကဲ့သို့ ရိုမန်နတ်ဘုရားအမည် တိုက်ရိုက်မဟုတ်ဘဲ ရှေးဂျာမန်နစ် စကားလုံး 'Ertha' (မြေပြင်/ကုန်းမြေ) မှ ဆင်းသက်လာသည်။",
+                discovery: "လူသားတို့ စတင်ပေါက်ဖွားရာ မွေးရပ်မြေ ဖြစ်သည်။ ခရစ်မပေါ်မီ ၃ ရာစုတွင် အီရတိုစသီးနီးစ် (Eratosthenes) က အရိပ်အလျားကို တိုင်းတာပြီး ကမ္ဘာလုံးပတ်လည် အဝန်းအတာကို အံ့ဩဖွယ် တိကျစွာ စတင်တွက်ချက်ပြခဲ့သည်။",
+                missions: "Apollo 8 ယာဉ်မှူးများ ရိုက်ကူးခဲ့သော 'Earthrise' နှင့် Voyager 1 ယာဉ် ရိုက်ကူးခဲ့သည့် 'Pale Blue Dot' ဓာတ်ပုံများသည် လူသားသမိုင်းတွင် အထင်ရှားဆုံး အာကာသမှတ်တမ်းများ ဖြစ်သည်။"
+            },
+            {
+                name: "Mars", myan: "အင်္ဂါဂြိုဟ်", a: 1.524, e: 0.093, radius: 3.2, base: "#dc2626", detail: "#991b1b", period: "687 ရက်",
+                myth: "ညကောင်းကင်တွင် သွေးကဲ့သို့ နီရဲတောက်ပနေသောကြောင့် ရှေးရောမလူမျိုးများက စစ်ပွဲနှင့် သွေးထွက်သံယိုမှုဆိုင်ရာ စစ်နတ်ဘုရား 'မားစ်' (Mars) အမည် ပေးခဲ့ကြသည်။ (၎င်း၏ လနှစ်စင်းကိုလည်း စစ်နတ်ဘုရား၏ မြင်းများဖြစ်သော ဖိုဘော့စ်-ကြောက်ရွံ့ခြင်း နှင့် ဒီးမော့စ်-ထိတ်လန့်ခြင်း ဟု ခေါ်သည်)။",
+                discovery: "၁၈၇၇ တွင် အီတလီနက္ခတ္တပညာရှင် Giovanni Schiaparelli က အင်္ဂါဂြိုဟ်မျက်နှာပြင်ပေါ်တွင် 'canali' (မြောင်းသဖွယ် လမ်းကြောင်းများ) တွေ့ရသည်ဟု မှတ်တမ်းတင်ခဲ့ရာမှ ဂြိုဟ်သားများ တူးဖော်ထားသော တူးမြောင်းများဟု ကမ္ဘာကျော် လူပြောများခဲ့ဖူးသည်။",
+                missions: "NASA Curiosity နှင့် Perseverance စက်ရုပ်ယာဉ်များသည် အင်္ဂါဂြိုဟ်ပေါ်တွင် ရှေးယခင်က သောက်သုံးနိုင်သော ရေကန်ကြီးများနှင့် မြစ်များ တကယ်ရှိခဲ့ကြောင်း အတည်ပြုခဲ့သည်။"
+            },
+            {
+                name: "Jupiter", myan: "ကြာသပတေးဂြိုဟ်", a: 5.204, e: 0.048, radius: 13.5, base: "#d97706", detail: "#92400e", period: "11.86 နှစ်", type: "gas",
+                myth: "ကောင်းကင်ယံတွင် ကြီးကျယ်ခမ်းနားစွာ ရွေ့လျားနေပြီး ဂြိုဟ်အားလုံးထက် ထုထည်အကြီးမားဆုံး ဖြစ်သောကြောင့် ရောမနတ်ဘုရားအားလုံး၏ အရှင်သခင် ဂျူပီတာ (ဂရိတွင် ဇုစ်) ၏ အမည်ကို ပေးခဲ့ခြင်း ဖြစ်သည်။",
+                discovery: "၁၆၁၀ တွင် ဂယ်လီလီယိုက ဂျူပီတာအနား လှည့်ပတ်နေသော လ ၄ စင်း (Io, Europa, Ganymede, Callisto) ကို စတင်တွေ့ရှိခဲ့ရာ အရာအားလုံးသည် ကမ္ဘာကို လှည့်ပတ်နေသည်ဟူသော ခရစ်ယာန်အသင်းတော်၏ ရှေးရိုးစွဲအယူအဆကို ပြိုလဲစေခဲ့သည်။",
+                missions: "NASA Juno ယာဉ်သည် ဂျူပီတာ၏ အဆပေါင်းထောင်ချီပြင်းထန်သော မုန်တိုင်းကြီးများ၊ ကမ္ဘာတစ်ခုလုံးစာ ဝင်ဆံ့သည့် Great Red Spot မဟာအနီစက်ကြီးနှင့် သံလိုက်စက်ကွင်းကို လေ့လာလျက်ရှိသည်။"
+            },
+            {
+                name: "Saturn", myan: "စနေဂြိုဟ်", a: 9.582, e: 0.056, radius: 11.0, base: "#fef08a", detail: "#ca8a04", period: "29.45 နှစ်", type: "gas", hasRing: true,
+                myth: "နေကို တစ်ပတ်ပြည့်အောင် လှည့်ပတ်ရန် နှစ်ပေါင်း ၃၀ နီးပါး အလွန်နှေးကွေးစွာ သွားလာသောကြောင့် ရောမတို့က အချိန်နှင့် သက်ကြီးစိုက်ပျိုးရေးနတ်ဘုရား စေတန် (Saturnus) အမည်ကို ပေးခဲ့သည်။",
+                discovery: "၁၆၅၅ တွင် ဒတ်ခ်ျပညာရှင် Christiaan Huygens က ပိုမိုအားကောင်းသော တယ်လီစကုပ်ဖြင့် ကြည့်ရှုကာ စနေဂြိုဟ်ပတ်လည်တွင် ထူးဆန်းသော အဝိုင်းကွင်းကြီး (Rings) တစ်ခု လွတ်လပ်စွာ တည်ရှိနေကြောင်း ပထမဆုံး ရှင်းလင်းစွာ ဖော်ထုတ်နိုင်ခဲ့သည်။",
+                missions: "NASA Cassini ယာဉ်သည် စနေဂြိုဟ်စနစ်တွင် ၁၃ နှစ်ကြာ စူးစမ်းခဲ့ပြီး၊ ၎င်း၏ လတစ်စင်းဖြစ်သော Enceladus ၏ ရေခဲမျက်နှာပြင်အောက်တွင် သက်ရှိရှင်သန်နိုင်သည့် သမုဒ္ဒရာကြီး ရှိနေကြောင်း တွေ့ရှိခဲ့သည်။"
+            }
         ];
 
         const godAsteroidsData = [
-            { name: "1 Ceres", a: 2.767, e: 0.079, radius: 1.6, period: "4.60 နှစ်", year: "၁၈၀၁ (ဇန်နဝါရီ ၁)", discoverer: "ဂျူဆက်ပီ ပီယက်ဇီ (Giuseppe Piazzi)", myth: "ရိုမန် စိုက်ပျိုးရေးနှင့် သီးနှံစောင့် နတ်ဘုရားမ", desc: "Main Asteroid Belt ၏ အကြီးဆုံးအရာဝတ္ထု။ NASA Dawn ယာဉ်သည် ၂၀၁၅ တွင် ရောက်ရှိကာ Occator Crater ၌ ဆားတွင်းအဖြူစက်များကို တွေ့ရှိခဲ့သည်။", hasBrightSpots: true },
-            { name: "2 Pallas", a: 2.772, e: 0.231, radius: 1.4, period: "4.61 နှစ်", year: "၁၈၀၂ (မတ် ၂၈)", discoverer: "ဟိန်းရစ် အိုလ်ဘာစ် (Heinrich Olbers)", myth: "ဂရိ ဉာဏ်ပညာနှင့် စစ်ပွဲနတ်ဘုရားမ (Pallas Athena)", desc: "ဒုတိယမြောက် တွေ့ရှိခဲ့သည့် သမိုင်းဝင် ဥက္ကာခဲကြီးဖြစ်ပြီး ပတ်လမ်းတိမ်းစောင်းမှု အလွန်မြင့်မားသည်။" },
-            { name: "3 Juno", a: 2.672, e: 0.255, radius: 1.2, period: "4.36 နှစ်", year: "၁၈၀၄ (စက်တင်ဘာ ၁)", discoverer: "ကားလ် ဟာဒင်း (Karl Harding)", myth: "ရိုမန် နတ်ဘုရားမတို့၏ ဘုရင်မ (Jupiter ၏ ဇနီး)", desc: "စတုတ္ထမြောက် အကြီးဆုံး Main Belt ဥက္ကာခဲဖြစ်ပြီး ကျောက်သားနှင့် သံသတ္တု ရောနှောပါဝင်သည်။" },
-            { name: "4 Vesta", a: 2.362, e: 0.089, radius: 1.5, period: "3.63 နှစ်", year: "၁၈၀၇ (မတ် ၂၉)", discoverer: "ဟိန်းရစ် အိုလ်ဘာစ် (Heinrich Olbers)", myth: "ရိုမန် အိမ်တွင်းမီးနှင့် သစ္စာတရား နတ်ဘုရားမ", desc: "အတောက်ပဆုံး ဥက္ကာခဲ။ NASA Dawn ယာဉ်သည် ၂၀၁၁ တွင် သွားရောက်ခဲ့ပြီး ဧဝရတ်ထက် ၂ ဆမြင့်သော တောင်ကြီးကို တွေ့ရှိခဲ့သည်။" },
-            { name: "5 Astraea", a: 2.574, e: 0.191, radius: 1.0, period: "4.13 နှစ်", year: "၁၈၄၅ (ဒီဇင်ဘာ ၈)", discoverer: "ကားလ် ဟန်ကီ (Karl Hencke)", myth: "ဂရိ တရားမျှတမှုနှင့် ဖြူစင်ခြင်း နတ်ဘုရားမ", desc: "Vesta တွေ့ရှိပြီး ၃၈ နှစ်အကြာ ဥက္ကာခဲရှာဖွေမှု ပြန်လည်အသက်ဝင်စေခဲ့သည့် အဓိက မှတ်တိုင်တစ်ခု။" },
-            { name: "10 Hygiea", a: 3.142, e: 0.117, radius: 1.3, period: "5.56 နှစ်", year: "၁၈၄၉ (ဧပြီ ၁၂)", discoverer: "အန်နီဘာလီ ဒီ ဂတ်စ်ပါရစ်", myth: "ဂရိ ကျန်းမာရေးနှင့် သန့်ရှင်းရေးစောင့် နတ်ဘုရားမ", desc: "Asteroid Belt တွင် စတုတ္ထအကြီးဆုံးဖြစ်ပြီး ပုံသဏ္ဌာန် လုံးဝန်းသဖြင့် Dwarf Planet အဖြစ် သတ်မှတ်ရန် စဉ်းစားခံနေရသည်။" },
-            { name: "16 Psyche", a: 2.924, e: 0.134, radius: 1.3, period: "5.00 နှစ်", year: "၁၈၅၂ (မတ် ၁၇)", discoverer: "အန်နီဘာလီ ဒီ ဂတ်စ်ပါရစ်", myth: "ဂရိ စိတ်ဝိညာဉ်နတ်ဘုရားမ", desc: "ရွှေ၊ သံနှင့် နီကယ် သတ္တုများဖြင့် ဖွဲ့စည်းထားသော ကမ္ဘာ့သမိုင်းဝင် ဥက္ကာခဲ။ NASA Psyche ယာဉ်ကို ၂၀၂၃ တွင် လွှတ်တင်ခဲ့သည်။", isMetal: true },
-            { name: "433 Eros", a: 1.458, e: 0.223, radius: 0.9, period: "1.76 နှစ်", year: "၁၈၉၈ (ဩဂုတ် ၁၃)", discoverer: "ကားလ် ဂူစတဗ် ဝစ် (Carl G. Witt)", myth: "ဂရိ အချစ်နှင့် တပ်မက်ခြင်း နတ်ဘုရား", desc: "မြေပဲသီးပုံသဏ္ဌာန် Near-Earth ဥက္ကာခဲ။ NASA NEAR Shoemaker ယာဉ်သည် ၂၀၀၁ တွင် မျက်နှာပြင်ပေါ်သို့ သမိုင်းဝင် ဆင်းသက်ခဲ့သည်။", shape: "elongated" },
-            { name: "1566 Icarus", a: 1.078, e: 0.827, radius: 0.8, period: "409 ရက်", year: "၁၉၄၉ (ဇွန် ၂၇)", discoverer: "ဝေါလ်တာ ဘာဒေး (Walter Baade)", myth: "ဂရိ နေမင်းအနီးသို့ ပျံသန်းခဲ့သူ အီကာရပ်စ်", desc: "နေနှင့် အနီးဆုံးကပ်သွားသည့် Apollo ဥက္ကာခဲဖြစ်ပြီး မာကျူရီထက်ပင် နေနှင့် ပိုမိုနီးကပ်စွာ ဖြတ်သန်းသွားသည်။" },
-            { name: "1862 Apollo", a: 1.470, e: 0.560, radius: 0.85, period: "1.78 နှစ်", year: "၁၉၃၂ (ဧပြီ ၂၄)", discoverer: "ကားလ် ရိန်းမွတ် (Karl Reinmuth)", myth: "ဂရိ အလင်းရောင်နှင့် နေနတ်ဘုရား (အပိုလို)", desc: "ကမ္ဘာ့ပတ်လမ်းကို ဖြတ်ကျော်သွားလာသော Apollo-class ဥက္ကာခဲအုပ်စုကို အမည်ပေးစေခဲ့သည့် အရင်းခံဥက္ကာခဲ။" },
-            { name: "2060 Chiron", a: 13.67, e: 0.383, radius: 1.1, period: "50.5 နှစ်", year: "၁၉၇၇ (အောက်တိုဘာ ၁၈)", discoverer: "ချားလ်စ် ကိုဝါလ် (Charles Kowal)", myth: "ဂရိ ဆေးပညာနှင့် ပညာရှင် ဆင်းတော ကေရွန်", desc: "Saturn နှင့် Uranus ကြား လှည့်ပတ်နေသည့် ပထမဆုံး Centaur အရာဝတ္ထုဖြစ်ပြီး ကြယ်တံခွန်ကဲ့သို့ အမြီးထွက်လေ့ရှိသည်။" },
-            { name: "3200 Phaethon", a: 1.271, e: 0.890, radius: 0.85, period: "523 ရက်", year: "၁၉၈၃ (အောက်တိုဘာ ၁၁)", discoverer: "IRAS ဂြိုဟ်တုအဖွဲ့", myth: "ဂရိ နေရထားမောင်းနှင်သူ ဖီတွန်", desc: "ဒီဇင်ဘာလတိုင်း တွေ့ရသည့် နာမည်ကျော် Geminid ကြယ်ကြွေမိုးကို ဖြစ်ပေါ်စေသော မိခင်ဥက္ကာခဲကျောက်တုံးကြီး။" },
-            { name: "99942 Apophis", a: 0.922, e: 0.191, radius: 0.75, period: "323 ရက်", year: "၂၀၀၄ (ဇွန် ၁၉)", discoverer: "Roy Tucker, David Tholen et al.", myth: "အီဂျစ် အမှောင်ထုနှင့် ဖျက်ဆီးခြင်း နတ်ဘုရား", desc: "၂၀၂၉ ဧပြီ ၁၃ တွင် ကမ္ဘာမြေနှင့် မိုင်ပေါင်း ၂၀,၀၀၀ အကွာ (ဂြိုဟ်တုများထက် ပိုနီးကပ်စွာ) ဘေးကင်းစွာ ဖြတ်သန်းမည်ဖြစ်သည်။" },
-            { name: "101955 Bennu", a: 1.126, e: 0.203, radius: 0.8, period: "436 ရက်", year: "၁၉၉၉ (စက်တင်ဘာ ၁၁)", discoverer: "LINEAR စီမံကိန်း", myth: "အီဂျစ် နေနတ်ဘုရားနှင့် ပြန်လည်မွေးဖွားခြင်းငှက်", desc: "စိန်တုံးပုံ Rubble-pile ဥက္ကာခဲ။ NASA OSIRIS-REx ယာဉ်သည် မြေသားနမူနာရယူပြီး ၂၀၂၃ စက်တင်ဘာတွင် ကမ္ဘာသို့ အောင်မြင်စွာ ပြန်သယ်ဆောင်ခဲ့သည်။", shape: "diamond" },
-            { name: "162173 Ryugu", a: 1.190, e: 0.190, radius: 0.8, period: "474 ရက်", year: "၁၉၉၉ (မေ ၁၀)", discoverer: "LINEAR စီမံကိန်း", myth: "ဂျပန် ပင်လယ်နဂါးမင်း နန်းတော် (Ryūgū-jō)", desc: "ဂျပန် JAXA Hayabusa2 ယာဉ်သည် ၂၀၁၈ တွင် သွားရောက်ခဲ့ပြီး မြေသားနမူနာများကို ကမ္ဘာသို့ အောင်မြင်စွာ သယ်ဆောင်ပေးခဲ့သည်။", shape: "diamond" },
-            { name: "50000 Quaoar", a: 43.69, e: 0.038, radius: 1.8, period: "288 နှစ်", year: "၂၀၀၂ (ဇွန် ၄)", discoverer: "Chad Trujillo & Mike Brown", myth: "Tongva (အမေရိကန်ဒေသခံ) ဖန်ဆင်းရှင်နတ်ဘုရား", desc: "Kuiper Belt ထဲမှ ထူးခြားသော ရေခဲဂြိုဟ်သိမ်ဖြစ်ပြီး သီအိုရီအရ မဖြစ်နိုင်ဟုယူဆရသော ကွင်းစနစ် (Rings) တစ်ခု ရှိနေသည်။" },
-            { name: "90377 Sedna", a: 525.8, e: 0.855, radius: 1.7, period: "၁၁,၄၀၀ နှစ်", year: "၂၀၀၃ (နိုဝင်ဘာ ၁၄)", discoverer: "Brown, Trujillo & Rabinowitz", myth: "Inuit (အင်းနုအစ်) ရေခဲပင်လယ်စောင့် နတ်ဘုရားမ", desc: "Oort Cloud နယ်စပ်အနီး အလွန်အေးခဲဝေးကွာလှပြီး တစ်ပတ်ပြည့်ရန် နှစ်ပေါင်း ၁ သောင်းကျော် ကြာမြင့်သည့် အနီရောင်ဂြိုဟ်သိမ်။" },
-            { name: "90482 Orcus", a: 39.41, e: 0.226, radius: 1.6, period: "247 နှစ်", year: "၂၀၀၄ (ဖေဖော်ဝါရီ ၁၇)", discoverer: "Brown, Trujillo & Rabinowitz", myth: "ရိုမန် ငရဲဘုံအရှင် နတ်ဘုရား", desc: "ပလူတိုနှင့် ပတ်လမ်းသဘောတရား ဆန့်ကျင်ဘက်တူညီသဖြင့် 'Anti-Pluto' ဟု တင်စားခေါ်ဝေါ်ကြသည်။" },
-            { name: "136108 Haumea", a: 43.21, e: 0.191, radius: 1.9, period: "284 နှစ်", year: "၂၀၀၄", discoverer: "Sierra Nevada / Caltech အဖွဲ့", myth: "ဟာဝိုင်အီ သားဖွားခြင်းနှင့် မြေဩဇာနတ်ဘုရားမ", desc: "အလွန်မြန်သော ၃.၉ နာရီတစ်ကြိမ် လည်ပတ်မှုကြောင့် ဘဲဥပုံ/ရဂ်ဘီဘောလုံးသဏ္ဌာန် ဆန့်ထွက်နေသည့် ရေခဲ Dwarf Planet။", shape: "elongated" },
-            { name: "136199 Eris", a: 67.78, e: 0.441, radius: 2.3, period: "558 နှစ်", year: "၂၀၀၅ (ဇန်နဝါရီ ၅)", discoverer: "Mike Brown, Trujillo, Rabinowitz", myth: "ဂရိ မငြိမ်မသက်မှုနှင့် အငြင်းပွားခြင်း နတ်ဘုရားမ", desc: "ဤဂြိုဟ်သိမ်ကို တွေ့ရှိမှုကြောင့် ၂၀၀၆ ခုနှစ်တွင် ပလူတိုကို ဂြိုဟ်စာရင်းမှ ပယ်ဖျက်ကာ Dwarf Planet စာရင်းသို့ ပြောင်းလဲစေခဲ့သည်။" },
-            { name: "136472 Makemake", a: 45.79, e: 0.159, radius: 2.0, period: "309 နှစ်", year: "၂၀၀၅ (မတ် ၃၁)", discoverer: "Mike Brown ဦးဆောင်သောအဖွဲ့", myth: "Rapa Nui (အီစတာကျွန်း) လူသားဖန်ဆင်းရှင်နတ်ဘုရား", desc: "မက်သနိန်းနှင့် အီသနိန်း ရေခဲများ ဖုံးလွှမ်းနေသဖြင့် Kuiper Belt တွင် အတောက်ပဆုံး အရာဝတ္ထုများထဲမှ တစ်ခုဖြစ်သည်။" }
+            {
+                name: "1 Ceres", a: 2.767, e: 0.079, radius: 1.6, period: "4.60 နှစ်",
+                myth: "ရောမတို့၏ ကောက်ပဲသီးနှံ၊ စိုက်ပျိုးရေးနှင့် မိခင်မေတ္တာ စောင့်ရှောက်သော နတ်ဘုရားမ စီးရီးစ် (Ceres) ၏ အမည်ကို ဂုဏ်ပြုထားသည်။ စီစီလီကျွန်း၏ စောင့်ရှောက်သူနတ်ဘုရားမလည်း ဖြစ်သည်။",
+                discovery: "၁၈၀၁ ခုနှစ် ဇန်နဝါရီလ ၁ ရက် (၁၉ ရာစု၏ ပထမဆုံးနေ့) တွင် အီတလီ ဘုန်းတော်ကြီး Giuseppe Piazzi က ကြယ်တာရာမြေပုံ ရေးဆွဲရင်း မာကျူရီနှင့် ဂျူပီတာကြား လစ်ဟာနေသော နေရာ၌ ရွေ့လျားနေသည့် အရာဝတ္ထုအသစ်တစ်ခုကို အမှတ်မထင် ရှာဖွေတွေ့ရှိခဲ့ခြင်း ဖြစ်သည်။",
+                missions: "NASA Dawn ယာဉ်သည် ၂၀၁၅ တွင် Ceres သို့ သွားရောက်ကာ ၎င်း၏ Occator Crater ချိုင့်ခွက်ကြီးထဲတွင် တောက်ပနေသော ဆိုဒီယမ်ကာဗွန်နိတ် ဆားတွင်းဖြူကြီးများကို တွေ့ရှိခဲ့သည်။", brightSpot: true
+            },
+            {
+                name: "4 Vesta", a: 2.362, e: 0.089, radius: 1.4, period: "3.63 နှစ်",
+                myth: "ရောမဒဏ္ဍာရီတွင် အိမ်တွင်းမီးဖို၊ အိမ်ထောင်ရေးနှင့် မြင့်မြတ်သော သစ္စာမီးကို ထိန်းသိမ်းစောင့်ရှောက်သည့် နတ်ဘုရားမ ဗက်စတာ (Vesta) ကို အစွဲပြုထားသည်။ ဤဥက္ကာခဲသည် အလွန်တောက်ပသဖြင့် သန့်ရှင်းသော မီးတောက်နှင့် ခိုင်းနှိုင်းခဲ့ခြင်း ဖြစ်သည်။",
+                discovery: "၁၈၀၇ ခုနှစ်တွင် ဂျာမန်နက္ခတ္တပညာရှင် Heinrich Olbers က Ceres နှင့် Pallas တို့ကို လေ့လာရင်း မမျှော်လင့်ဘဲ တတိယမြောက် ထပ်မံတွေ့ရှိခဲ့သည်။ ကမ္ဘာမှ သာမန်မျက်စိဖြင့် တစ်ခါတစ်ရံ မြင်တွေ့နိုင်သည့် တစ်ခုတည်းသော ဥက္ကာခဲ ဖြစ်သည်။",
+                missions: "NASA Dawn ယာဉ်သည် ၂၀၁၁ တွင် Vesta သို့ ဆင်းသက်လှည့်ပတ်ခဲ့ပြီး တောင်ဝင်ရိုးစွန်းတွင် ဧဝရတ်တောင်ထက် နှစ်ဆကျော်မြင့်သော Rheasilvia မဟာတောင်ကြီးကို ရှာဖွေတွေ့ရှိခဲ့သည်။"
+            },
+            {
+                name: "16 Psyche", a: 2.924, e: 0.134, radius: 1.3, period: "5.00 နှစ်", isMetal: true,
+                myth: "ဂရိဒဏ္ဍာရီတွင် လူသားဘဝမှ မသေမျိုးနတ်ဘုရားမအဖြစ်သို့ ရောက်ရှိခဲ့ပြီး အချစ်နတ်သား Eros (ကျူးပစ်) ၏ ချစ်သူဇနီးဖြစ်လာသည့် စိတ်ဝိညာဉ်နတ်ဘုရားမ ဆိုက်ကီ (Psyche) အမည်ကို ပေးထားသည်။",
+                discovery: "၁၈၅၂ တွင် အီတလီနက္ခတ္တပညာရှင် Annibale de Gasparis က ရှာဖွေတွေ့ရှိခဲ့သည်။ သာမန်ကျောက်ခဲမဟုတ်ဘဲ ရွှေ၊ ပလက်တီနမ်၊ သံနှင့် နီကယ် သတ္တုသစ်တုံးကြီးတစ်ခုလုံးနီးပါး ဖြစ်နေကြောင်း သိပ္ပံပညာရှင်များ တွက်ချက်မိသောအခါ ကမ္ဘာကျော်သွားခဲ့သည်။",
+                missions: "NASA သည် ဒေါ်လာ ထရီလီယံပေါင်းများစွာ တန်ဖိုးရှိသော သတ္တုကမ္ဘာကြီးကို လေ့လာရန် 'Psyche Spacecraft' ကို ၂၀၂၃ ခုနှစ် အောက်တိုဘာတွင် အောင်မြင်စွာ လွှတ်တင်ခဲ့ပြီး ၂၀၂၉ တွင် ရောက်ရှိမည် ဖြစ်သည်။"
+            },
+            {
+                name: "433 Eros", a: 1.458, e: 0.223, radius: 0.9, period: "1.76 နှစ်", shape: "elongated",
+                myth: "ဂရိတို့၏ အချစ်၊ စိတ်ကူးယဉ်တပ်မက်မှုနှင့် မျိုးပွားခြင်းနတ်ဘုရား အီရို့စ် (Eros) ၏ အမည်ကို မှည့်ခေါ်ထားသည်။",
+                discovery: "၁၈၉၈ တွင် Carl Gustav Witt က ရှာဖွေတွေ့ရှိခဲ့သည်။ ကမ္ဘာ့ပတ်လမ်းအနီးသို့ ပထမဆုံး ဖြတ်သန်းလာသည့် မြေပဲသီးပုံသဏ္ဌာန် ဥက္ကာခဲကြီးအဖြစ် သမိုင်းဝင်ခဲ့သည်။",
+                missions: "NASA NEAR Shoemaker ယာဉ်သည် ၂၀၀၁ ခုနှစ်တွင် ဥက္ကာခဲမျက်နှာပြင်ပေါ်သို့ သမိုင်းတွင် ပထမဆုံးအကြိမ် ပျက်စီးမှုမရှိဘဲ အောင်မြင်စွာ ဆင်းသက်နိုင်ခဲ့သည်။"
+            },
+            {
+                name: "101955 Bennu", a: 1.126, e: 0.203, radius: 0.8, period: "436 ရက်", shape: "diamond",
+                myth: "ရှေးအီဂျစ်ဒဏ္ဍာရီတွင် နေနတ်ဘုရား ရာ (Ra) ၏ ဝိညာဉ်တော်ဖြစ်ပြီး ရေလွှမ်းမိုးမှုအပြီးတွင် ကမ္ဘာမြေကို ပြန်လည်မွေးဖွားပေးသည့် မီးငှက်နတ်ဘုရား 'ဘန်နူ' (Bennu) အမည် ဖြစ်သည်။ ၂၀၁၃ တွင် မြောက်ကာရိုလိုင်းနားမှ ၉ နှစ်အရွယ် မူလတန်းကျောင်းသားလေး Michael Puzio ၏ အမည်ပေးပြိုင်ပွဲ အနိုင်ရမှုမှတစ်ဆင့် တရားဝင် ပေးခဲ့ခြင်း ဖြစ်သည်။",
+                discovery: "၁၉၉၉ တွင် LINEAR တယ်လီစကုပ်စီမံကိန်းက ရှာဖွေတွေ့ရှိခဲ့သည်။ စိန်တုံးသဏ္ဌာန် ကျောက်စရစ်ခဲများ စုဖွဲ့နေသော အန္တရာယ်ရှိ Near-Earth ဥက္ကာခဲ ဖြစ်သည်။",
+                missions: "NASA OSIRIS-REx ယာဉ်သည် Bennu ပေါ်သို့ ချဉ်းကပ်ကာ မြေသားနမူနာ ယူဆောင်ပြီး ၂၀၂၃ ခုနှစ် စက်တင်ဘာလ ၂၄ ရက်နေ့တွင် ကမ္ဘာမြေသို့ အောင်မြင်စွာ ပြန်လည်သယ်ဆောင်ပေးနိုင်ခဲ့သည်။"
+            }
         ];
 
-        // ၄။ SUN CREATION
-        const sunGeo = new THREE.SphereGeometry(22, 32, 32);
-        const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff0a0 });
-        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
-        scene.add(sunMesh);
-        const sunLabel = createLabel("Sun", "#fff0a0");
-        sunMesh.add(sunLabel);
-
-        // Orbit Line Drawer
-        function createOrbitPath(a_AU, e, color) {
-            const points = [];
-            const segments = 128;
-            const a = getVisualDistance(a_AU);
-            const b = a * Math.sqrt(Math.max(0.001, 1 - e * e));
-            const c = a * e;
-
-            for (let i = 0; i <= segments; i++) {
-                const theta = (i / segments) * Math.PI * 2;
-                points.push(new THREE.Vector3(a * Math.cos(theta) - c, 0, b * Math.sin(theta)));
-            }
-            return new THREE.LineLoop(
-                new THREE.BufferGeometry().setFromPoints(points),
-                new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3 })
+        // ၃။ CONSTELLATIONS DATA (Celestial Sphere Coordinates & Lines)
+        // Right Ascension (hours to rad), Declination (deg to rad)
+        function radecToVector(raHours, decDeg, radius = 2500) {
+            const ra = (raHours / 24) * Math.PI * 2;
+            const dec = (decDeg / 180) * Math.PI;
+            return new THREE.Vector3(
+                radius * Math.cos(dec) * Math.cos(ra),
+                radius * Math.sin(dec),
+                radius * Math.cos(dec) * Math.sin(ra)
             );
         }
 
-        // ၅။ BUILD BODIES WITH NASA-LIKE IRREGULAR GEOMETRY
-        const allBodies = [];
+        const constellationsData = [
+            {
+                name: "Orion", myan: "မုဆိုးကြယ်စု",
+                center: { ra: 5.5, dec: 5 },
+                myth: "ဂရိဒဏ္ဍာရီတွင် အလွန်စွမ်းအားကြီးပြီး ခန့်ညားသော မုဆိုးကြီး အိုရိုင်ယွန် ဖြစ်သည်။ လေးနှင့်မြှားနတ်ဘုရားမ အာတီးမစ်နှင့် ချစ်ကျွမ်းဝင်ခဲ့သော်လည်း အာပိုလို၏ ပရိယာယ်ကြောင့် အသတ်ခံခဲ့ရကာ ဇုစ်နတ်မင်းက ကောင်းကင်တွင် ကြယ်စင်စုအဖြစ် တင်မြှောက်ပေးခဲ့သည်။ ၎င်း၏ ခါးပတ်နေရာရှိ ကြယ်သုံးပွင့် (Orion's Belt) သည် ကမ္ဘာကျော်သည်။",
+                discovery: "ရှေးဟောင်း ကျောက်ခေတ် ကွန်ပြူတာဟု တင်စားရသော ဟာရတ်ဂူနံရံများတွင် လွန်ခဲ့သော နှစ်ပေါင်း ၃၂,၀၀၀ ကျော်ကတည်းက စတင်ရေးဆွဲခဲ့ကြသည်။ ဆူမားရီးယန်း၊ အီဂျစ် (Osiris နတ်ဘုရား) နှင့် ဗာဗုလုံခေတ်ကတည်းက ကောင်းကင်၏ အဓိက အမှတ်အသားအဖြစ် မှတ်တမ်းတင်ခဲ့သည်။",
+                missions: "၎င်းတွင် ပါဝင်သော Betelgeuse (ဗီတယ်လ်ဂျူးစ်) သည် မကြာမီ ဆူပါနိုဗာအဖြစ် ပေါက်ကွဲတော့မည့် ဧရာမကြယ်နီကြီးဖြစ်ပြီး Hubble နှင့် James Webb တယ်လီစကုပ်တို့၏ အဓိက စောင့်ကြည့်ခံ ပစ်မှတ် ဖြစ်သည်။",
+                stars: [
+                    { ra: 5.9, dec: 7.4 },   // Betelgeuse
+                    { ra: 5.24, dec: -8.2 }, // Rigel
+                    { ra: 5.4, dec: 6.3 },   // Bellatrix
+                    { ra: 5.8, dec: -9.6 },  // Saiph
+                    { ra: 5.53, dec: -0.3 }, // Mintaka
+                    { ra: 5.6, dec: -1.2 },  // Alnilam
+                    { ra: 5.67, dec: -1.9 }  // Alnitak
+                ],
+                edges: [[0,2], [2,4], [4,5], [5,6], [6,1], [1,3], [3,6], [0,6]]
+            },
+            {
+                name: "Ursa Major", myan: "မဟာဝက်ဝံကြီး (ဓူဝံကြယ်ညွှန်)",
+                center: { ra: 11.0, dec: 55 },
+                myth: "ဇုစ်နတ်မင်း၏ ချစ်သူ ကယ်လစ်စတို (Callisto) ကို မနာလိုသော ဇနီး ဟီရာ (Hera) က ဝက်ဝံမကြီးအဖြစ် ကျိန်စာတိုက်ခဲ့သည်။ နောင်တွင် ဇုစ်က ကယ်လစ်စတိုကို သနားသဖြင့် အမြီးမှဆွဲကိုင်ကာ ကောင်းကင်ပေါ်သို့ ပစ်တင်ပေးခဲ့ရာမှ ဝက်ဝံမကြီး၏ အမြီးရှည်ထွက်သွားသည်ဟု ဒဏ္ဍာရီတွင် ဆိုသည်။ ၎င်း၏ ပုံသဏ္ဌာန်မှာ ယောက်ချိုဇွန်းကြီး (Big Dipper) နှင့် တူသည်။",
+                discovery: "ကမ္ဘာ့မြောက်ခြမ်း ယဉ်ကျေးမှုအားလုံး (ဂရိ၊ တရုတ်၊ အမေရိကန်ဒေသခံအင်ဒီးယန်းများ) တွင် ရေကြောင်းခရီးသွားများအတွက် မြောက်အရပ် (ဓူဝံကြယ်) ကို ရှာဖွေရာတွင် သမိုင်းတစ်လျှောက် မရှိမဖြစ် အသုံးပြုခဲ့ကြသည်။",
+                missions: "၁၉၉၅ ခုနှစ်တွင် Hubble Space Telescope သည် ဤကြယ်စုအနားရှိ အမှောင်ဆုံး အာကာသဟာလာနယ်ကို ၁၀ ရက်ကြာ ချိန်ရွယ်ရိုက်ကူးခဲ့ရာမှ ဂလက်ဆီပေါင်း ၃,၀၀၀ ကျော် ပြည့်နှက်နေသည့် သမိုင်းဝင် 'Hubble Deep Field' ပုံကြီး ထွက်ပေါ်လာခဲ့သည်။",
+                stars: [
+                    { ra: 11.06, dec: 61.7 }, // Dubhe
+                    { ra: 11.03, dec: 56.3 }, // Merak
+                    { ra: 11.9, dec: 53.7 },  // Phecda
+                    { ra: 12.25, dec: 57.0 }, // Megrez
+                    { ra: 12.9, dec: 55.9 },  // Alioth
+                    { ra: 13.4, dec: 54.9 },  // Mizar
+                    { ra: 13.79, dec: 49.3 }  // Alkaid
+                ],
+                edges: [[0,1], [1,2], [2,3], [3,0], [3,4], [4,5], [5,6]]
+            },
+            {
+                name: "Cassiopeia", myan: "မယ်တော် ကာစီယိုပီယာ (W ပုံ)",
+                center: { ra: 1.0, dec: 60 },
+                myth: "အီသီယိုးပီးယား ဘုရင်မ ကာစီယိုပီယာသည် သူမနှင့် သမီးတော် အန်ဒရိုမီဒါတို့သည် ပင်လယ်စောင့် နတ်သမီးများထက် ပိုမိုလှပသည်ဟု မာနထောင်လွှား ဝါကြွားခဲ့သဖြင့် ပိုဆိုင်ဒွန်နတ်ဘုရားက ကောင်းကင်တွင် ဇောက်ထိုးတွဲလောင်းဖြစ်နေစေရန် ကြယ်စင်စုအဖြစ် ကျိန်စာတိုက်ခဲ့သည်။ W အက္ခရာ ပုံသဏ္ဌာန် ထင်ရှားသည်။",
+                discovery: "အေဒီ ၂ ရာစုတွင် တော်လမီ (Ptolemy) ပြုစုခဲ့သော မူလ ကြယ်စင်စု ၄၈ ခုစာရင်းတွင် ပါဝင်ခဲ့သည်။ ၁၅၇၂ တွင် Tycho Brahe သည် ဤကြယ်စုအတွင်း သမိုင်းဝင် ဆူပါနိုဗာကြယ်ပေါက်ကွဲမှုကို တွေ့ရှိကာ ကောင်းကင်သည် မပြောင်းလဲနိုင်သော နတ်ဘုံမဟုတ်ကြောင်း သက်သေပြခဲ့သည်။",
+                missions: "Chandra X-ray Observatory သည် ဤကြယ်စုအတွင်းရှိ နာမည်ကျော် Cassiopeia A ဆူပါနိုဗာ အကြွင်းအကျန် နျူထရွန်ကြယ်ကို အသေးစိတ် စူးစမ်းလေ့လာလျက်ရှိသည်။",
+                stars: [
+                    { ra: 0.15, dec: 59.1 },  // Caph
+                    { ra: 0.67, dec: 56.5 },  // Schedar
+                    { ra: 0.94, dec: 60.7 },  // Gamma Cas
+                    { ra: 1.43, dec: 60.2 },  // Ruchbah
+                    { ra: 1.9, dec: 63.7 }    // Segin
+                ],
+                edges: [[0,1], [1,2], [2,3], [3,4]]
+            },
+            {
+                name: "Scorpius", myan: "ကင်းမြီးကောက်ကြယ်စု",
+                center: { ra: 16.5, dec: -30 },
+                myth: "မာနကြီးသော မုဆိုး အိုရိုင်ယွန်ကို သုတ်သင်ရန် မြေကမ္ဘာနတ်ဘုရားမ ဂိုင်ယာ စေလွှတ်လိုက်သော အဆိပ်ပြင်း ကင်းမြီးကောက်ကြီး ဖြစ်သည်။ အိုရိုင်ယွန်ကို အဆိပ်ဖြင့် အောင်မြင်စွာ တုပ်နိုင်ခဲ့သဖြင့် ကြယ်စင်စု ဖြစ်လာခဲ့သည်။ ကောင်းကင်ယံတွင် အိုရိုင်ယွန်ကြယ်စု ပေါ်လာပါက ကင်းမြီးကောက်ကြယ်စုက ပုန်းရှောင်သွားပြီး၊ ကင်းမြီးကောက် ပေါ်လာပါက အိုရိုင်ယွန်က မြေအောက်သို့ ဝင်သွားသည့် ဓလေ့ရှိသည်။",
+                discovery: "ဆူမားရီးယန်းတို့က လွန်ခဲ့သော နှစ်ပေါင်း ၅,၀၀၀ ကျော်ကတည်းက GIR-TAB (ကင်းမြီးကောက်) ဟု အမည်ပေးခဲ့သည်။ ၎င်း၏ နှလုံးသားနေရာရှိ ကြယ်နီကြီး အန်တာရက်စ် (Antares) သည် မားစ် (အင်္ဂါဂြိုဟ်) ၏ ပြိုင်ဘက်ဟု အဓိပ္ပာယ်ရသည်။",
+                missions: "NASA ၏ အာကာသ တယ်လီစကုပ်များသည် ဤကြယ်စု၏ အမြီးပိုင်း ချိတ်ကောက်နေရာရှိ ကြယ်မွေးဖွားရာ ဓူဝံတိမ်တိုက် (Nebulae) များစွာကို ရိုက်ကူးလေ့လာလျက်ရှိသည်။",
+                stars: [
+                    { ra: 16.0, dec: -22.6 }, // Graffias
+                    { ra: 16.08, dec: -19.8 },// Dschubba
+                    { ra: 16.48, dec: -26.4 },// Antares (Heart)
+                    { ra: 16.85, dec: -34.3 },// Wei
+                    { ra: 17.2, dec: -39.0 }, // Sargas
+                    { ra: 17.56, dec: -37.1 } // Shaula (Stinger)
+                ],
+                edges: [[0,1], [1,2], [2,3], [3,4], [4,5]]
+            }
+        ];
+
+        // ၄။ BUILD SOLAR SYSTEM OBJECTS
+        const trackedBodies = [];
         const planetsOpt = document.getElementById('planets-opt');
         const asteroidsOpt = document.getElementById('asteroids-opt');
 
-        function registerCelestialBody(data, isAsteroid = false) {
-            scene.add(createOrbitPath(data.a, data.e, isAsteroid ? 0x00e5ff : 0x475569));
+        // The Sun
+        const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(22, 32, 32), new THREE.MeshBasicMaterial({ color: 0xfff0a0 }));
+        solarGroup.add(sunMesh);
+        sunMesh.add(createLabelSprite("Sun", "#fff0a0"));
 
-            // NASA Irregular Shape Generation (Potato / Diamond / Flattened)
+        function createOrbitPath(a_AU, e, color) {
+            const pts = []; const seg = 128;
+            const a = getVisualDistance(a_AU);
+            const b = a * Math.sqrt(Math.max(0.001, 1 - e * e));
+            const c = a * e;
+            for (let i = 0; i <= seg; i++) {
+                const th = (i / seg) * Math.PI * 2;
+                pts.push(new THREE.Vector3(a * Math.cos(th) - c, 0, b * Math.sin(th)));
+            }
+            return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3 }));
+        }
+
+        function registerBody(data, isAsteroid = false) {
+            solarGroup.add(createOrbitPath(data.a, data.e, isAsteroid ? 0x00e5ff : 0x475569));
+
             let geo;
             if (isAsteroid) {
                 geo = new THREE.DodecahedronGeometry(data.radius, 2);
-                // Vertex perturbation for realistic rocky roughness
                 const pos = geo.attributes.position;
                 for (let i = 0; i < pos.count; i++) {
-                    const vx = pos.getX(i);
-                    const vy = pos.getY(i);
-                    const vz = pos.getZ(i);
-                    const noise = 1 + (Math.sin(vx * 3) + Math.cos(vy * 3) + Math.sin(vz * 3)) * 0.08;
-                    pos.setXYZ(i, vx * noise, vy * noise, vz * noise);
+                    const vx = pos.getX(i), vy = pos.getY(i), vz = pos.getZ(i);
+                    const n = 1 + (Math.sin(vx * 3) + Math.cos(vy * 3)) * 0.08;
+                    pos.setXYZ(i, vx * n, vy * n, vz * n);
                 }
                 geo.computeVertexNormals();
             } else {
                 geo = new THREE.SphereGeometry(data.radius, 32, 32);
             }
 
-            const texture = generateNasaTexture(
-                data.type || (isAsteroid ? 'asteroid' : 'planet'),
-                data.base || "#64748b",
-                data.detail || "#334155",
-                data.hasBrightSpots || false
-            );
-
-            const mat = new THREE.MeshStandardMaterial({
-                map: texture,
-                roughness: data.isMetal ? 0.3 : 0.85,
-                metalness: data.isMetal ? 0.8 : 0.05
-            });
-
+            const texture = generateProceduralTexture(data.type || (isAsteroid ? 'asteroid' : 'planet'), data.base || "#64748b", data.detail || "#334155", data.brightSpot);
+            const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: data.isMetal ? 0.3 : 0.85, metalness: data.isMetal ? 0.8 : 0.05 });
             const mesh = new THREE.Mesh(geo, mat);
 
-            // Shape Specific Scaling (Eros, Ryugu, Haumea)
-            if (data.shape === "elongated") {
-                mesh.scale.set(1.7, 0.9, 0.8);
-            } else if (data.shape === "diamond") {
-                mesh.scale.set(1.2, 0.85, 1.2);
-            }
+            if (data.shape === "elongated") mesh.scale.set(1.6, 0.9, 0.8);
+            if (data.shape === "diamond") mesh.scale.set(1.2, 0.85, 1.2);
 
-            // Saturn's Rings
             if (data.hasRing) {
                 const ringGeo = new THREE.RingGeometry(data.radius + 2.5, data.radius + 10, 48);
                 const ringMat = new THREE.MeshBasicMaterial({ color: 0xd7ccc8, side: THREE.DoubleSide, transparent: true, opacity: 0.75 });
@@ -325,158 +423,281 @@
                 mesh.add(ring);
             }
 
-            // Atmosphere / Clouds for Earth
             let cloudsMesh = null;
             if (data.hasClouds) {
                 const cloudGeo = new THREE.SphereGeometry(data.radius + 0.12, 32, 32);
-                const cloudMat = new THREE.MeshStandardMaterial({
-                    map: generateNasaTexture('gas', '#ffffff', '#93c5fd'),
-                    transparent: true,
-                    opacity: 0.38
-                });
+                const cloudMat = new THREE.MeshStandardMaterial({ map: generateProceduralTexture('gas', '#ffffff', '#93c5fd'), transparent: true, opacity: 0.35 });
                 cloudsMesh = new THREE.Mesh(cloudGeo, cloudMat);
                 mesh.add(cloudsMesh);
             }
 
-            // In-Scene 3D Label
-            const label = createLabel(data.name, isAsteroid ? "#38bdf8" : "#ffffff");
+            const label = createLabelSprite(data.name, isAsteroid ? "#38bdf8" : "#ffffff");
             label.position.y = data.radius + (isAsteroid ? 2.5 : 4.5);
             mesh.add(label);
 
-            scene.add(mesh);
-            const bodyObj = { mesh, label, cloudsMesh, data, angle: Math.random() * Math.PI * 2, isAsteroid };
-            allBodies.push(bodyObj);
+            solarGroup.add(mesh);
+            trackedBodies.push({ mesh, label, cloudsMesh, data, angle: Math.random() * Math.PI * 2, isAsteroid });
 
-            // Populate Dropdown
             const opt = document.createElement('option');
             opt.value = data.name;
             opt.innerText = data.name + (data.myan ? ` (${data.myan})` : '');
             (isAsteroid ? asteroidsOpt : planetsOpt).appendChild(opt);
         }
 
-        planetsData.forEach(p => registerCelestialBody(p, false));
-        godAsteroidsData.forEach(a => registerCelestialBody(a, true));
+        planetsData.forEach(p => registerBody(p, false));
+        godAsteroidsData.forEach(a => registerBody(a, true));
 
-        // ၆။ INSTANCED MESH FOR ASTEROID BELT (3,000 Rocks)
-        const beltCount = 3000;
-        const asteroidBelt = new THREE.InstancedMesh(
-            new THREE.DodecahedronGeometry(0.35, 0),
-            new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 }),
-            beltCount
-        );
+        // Asteroid Belt InstancedMesh
+        const beltCount = 2800;
+        const beltMesh = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.35, 0), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 }), beltCount);
         const dummy = new THREE.Object3D();
         for (let i = 0; i < beltCount; i++) {
-            const au = 2.1 + Math.random() * 1.1;
-            const dist = getVisualDistance(au);
+            const dist = getVisualDistance(2.1 + Math.random() * 1.1);
             const angle = Math.random() * Math.PI * 2;
             dummy.position.set(Math.cos(angle) * dist, (Math.random() - 0.5) * 8, Math.sin(angle) * dist);
             dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-            const s = 0.3 + Math.random() * 1.0;
-            dummy.scale.set(s, s, s);
-            dummy.updateMatrix();
-            asteroidBelt.setMatrixAt(i, dummy.matrix);
+            const s = 0.3 + Math.random(); dummy.scale.set(s, s, s); dummy.updateMatrix();
+            beltMesh.setMatrixAt(i, dummy.matrix);
         }
-        scene.add(asteroidBelt);
+        solarGroup.add(beltMesh);
 
-        // ၇။ STARFIELD PARTICLES
-        const starsGeo = new THREE.BufferGeometry();
-        const starsCount = 5000;
-        const starPos = new Float32Array(starsCount * 3);
-        for (let i = 0; i < starsCount * 3; i += 3) {
-            const rad = 3500 + Math.random() * 4000;
-            const u = Math.random(), v = Math.random();
-            const theta = u * 2.0 * Math.PI, phi = Math.acos(2.0 * v - 1.0);
-            starPos[i] = rad * Math.sin(phi) * Math.cos(theta);
-            starPos[i+1] = rad * Math.sin(phi) * Math.sin(theta);
-            starPos[i+2] = rad * Math.cos(phi);
-        }
-        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-        scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0x93c5fd, size: 1.8 })));
+        // ၅။ BUILD CONSTELLATION DOME (Stars, Stick Figures & Labels)
+        const constOptionGroup = document.getElementById('constellations-opt');
+        const constellationsList = [];
 
-        // ၈။ INTERACTIVE TARGET TRACKING & CLOSE-UP FRAMING
-        let currentTarget = null;
-        let targetCamDistance = 40;
-        const bottomHud = document.getElementById('bottom-hud');
+        constellationsData.forEach(c => {
+            const cGroup = new THREE.Group();
+            const starPoints = c.stars.map(s => radecToVector(s.ra, s.dec));
 
-        function setFocus(name) {
-            // Restore visibility of previous label
-            if (currentTarget && currentTarget.label) {
-                currentTarget.label.visible = true;
-            }
-
-            if (name === "Overview") {
-                currentTarget = null;
-                bottomHud.style.display = "none";
-                return;
-            }
-
-            const found = allBodies.find(b => b.data.name === name);
-            if (found) {
-                currentTarget = found;
-                // ပစ်မှတ်အနီးသို့ Zoom ဆွဲချိန်တွင် 3D Label ကြောင့် မကွယ်စေရန် Label ကို ဖျောက်ထားခြင်း
-                found.label.visible = false;
-
-                // ကင်မရာ Fit ချိန်ညှိမှု - ဂြိုဟ်အဆမတန် မကြီးနေစေရန် (radius x 4.8) သင့်တော်စွာ ချိန်ညှိထားခြင်း
-                targetCamDistance = Math.max(found.data.radius * 4.8, 6.5);
-
-                // Update Bottom Translucent HUD
-                document.getElementById('hud-name').innerText = found.data.name + (found.data.myan ? ` (${found.data.myan})` : '');
-                document.getElementById('hud-type').innerText = found.isAsteroid ? "Asteroid / Small Body" : "Major Planet";
-                document.getElementById('hud-year').innerText = found.data.year || "-";
-                document.getElementById('hud-discoverer').innerText = found.data.discoverer || "-";
-                document.getElementById('hud-orbit').innerText = `${found.data.a} AU`;
-                document.getElementById('hud-period').innerText = found.data.period;
-                document.getElementById('hud-myth').innerText = found.data.myth || "-";
-                document.getElementById('hud-history').innerText = found.data.desc || "-";
-
-                bottomHud.style.display = "block";
-            }
-        }
-
-        document.getElementById('target-selector').addEventListener('change', (e) => setFocus(e.target.value));
-        document.getElementById('hud-close').addEventListener('click', () => {
-            document.getElementById('target-selector').value = "Overview";
-            setFocus("Overview");
-        });
-        document.getElementById('reset-cam-btn').addEventListener('click', () => {
-            document.getElementById('target-selector').value = "Overview";
-            setFocus("Overview");
-            controls.target.set(0, 0, 0);
-            camera.position.set(0, 420, 650);
-        });
-
-        // ၉။ ANIMATION LOOP
-        const simSpeed = 0.35;
-        function animate() {
-            requestAnimationFrame(animate);
-
-            sunMesh.rotation.y += 0.002;
-            asteroidBelt.rotation.y += 0.0003;
-
-            // Orbital Motion (Kepler Ellipse)
-            allBodies.forEach(obj => {
-                const { mesh, cloudsMesh, data } = obj;
-                // Approximate speed based on distance
-                obj.angle += (0.015 / Math.pow(data.a, 0.75)) * simSpeed;
-
-                const a = getVisualDistance(data.a);
-                const b = a * Math.sqrt(Math.max(0.001, 1 - data.e * data.e));
-                mesh.position.x = a * Math.cos(obj.angle) - (a * data.e);
-                mesh.position.z = b * Math.sin(obj.angle);
-                mesh.rotation.y += 0.014;
-
-                if (cloudsMesh) cloudsMesh.rotation.y += 0.018;
+            // Star spheres
+            const starGeo = new THREE.SphereGeometry(6, 16, 16);
+            const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            starPoints.forEach(pos => {
+                const sMesh = new THREE.Mesh(starGeo, starMat);
+                sMesh.position.copy(pos);
+                cGroup.add(sMesh);
             });
 
-            // Smooth Camera Follow & Auto-Framing
-            if (currentTarget) {
-                const targetPos = currentTarget.mesh.position;
-                controls.target.lerp(targetPos, 0.08);
+            // Stick figure lines
+            const linePoints = [];
+            c.edges.forEach(edge => {
+                linePoints.push(starPoints[edge[0]]);
+                linePoints.push(starPoints[edge[1]]);
+            });
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.7, linewidth: 2 });
+            const lineMesh = new THREE.LineSegments(lineGeo, lineMat);
+            cGroup.add(lineMesh);
 
-                // Smoothly maintain balanced camera framing distance
-                const camOffset = camera.position.clone().sub(controls.target).normalize().multiplyScalar(targetCamDistance);
-                camera.position.lerp(targetPos.clone().add(camOffset), 0.06);
+            // Constellation Name Label
+            const centerVec = radecToVector(c.center.ra, c.center.dec);
+            const cLabel = createLabelSprite(`${c.name}\n(${c.myan})`, "#7dd3fc");
+            cLabel.scale.set(120, 30, 1);
+            cLabel.position.copy(centerVec).multiplyScalar(0.95);
+            cGroup.add(cLabel);
+
+            constellationGroup.add(cGroup);
+            constellationsList.push({ data: c, centerVec, lineMat, group: cGroup });
+
+            const opt = document.createElement('option');
+            opt.value = "CONST_" + c.name;
+            opt.innerText = `🌌 ${c.name} (${c.myan})`;
+            constOptionGroup.appendChild(opt);
+        });
+
+        // Background Starfield (Deep Space)
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 4500;
+        const starPos = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount * 3; i += 3) {
+            const rad = 4000 + Math.random() * 3000;
+            const u = Math.random(), v = Math.random();
+            const th = u * 2.0 * Math.PI, ph = Math.acos(2.0 * v - 1.0);
+            starPos[i] = rad * Math.sin(ph) * Math.cos(th);
+            starPos[i+1] = rad * Math.sin(ph) * Math.sin(th);
+            starPos[i+2] = rad * Math.cos(ph);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0x93c5fd, size: 2 })));
+
+        // ၆။ CAMERA MODES & SMOOTH TRANSITION CONTROLLER
+        let currentMode = 'SOLAR'; // 'SOLAR' | 'CONSTELLATION'
+        let currentTarget = null;
+        let isInspecting = false;
+        let selectedConstellation = null;
+
+        // Smooth Camera Transition via TWEEN
+        function animateCamera(targetPos, targetLookAt, duration = 1200, onComplete) {
+            controls.enabled = false;
+            new TWEEN.Tween(camera.position)
+                .to(targetPos, duration)
+                .easing(TWEEN.Easing.Cubic.InOut)
+                .start();
+
+            new TWEEN.Tween(controls.target)
+                .to(targetLookAt, duration)
+                .easing(TWEEN.Easing.Cubic.InOut)
+                .onComplete(() => {
+                    controls.enabled = true;
+                    if (onComplete) onComplete();
+                })
+                .start();
+        }
+
+        // Overview Reset Function (Fixed & Smooth)
+        function restoreOverview() {
+            isInspecting = false;
+            if (currentTarget && currentTarget.label) currentTarget.label.visible = true;
+            currentTarget = null;
+            selectedConstellation = null;
+            document.getElementById('const-quick-info').style.display = 'none';
+
+            if (currentMode === 'SOLAR') {
+                animateCamera(OVERVIEW_CAM_POS, OVERVIEW_TARGET, 1400);
+            } else {
+                // Earth dome view
+                animateCamera(new THREE.Vector3(0, 5, 0), new THREE.Vector3(0, 50, -500), 1400);
             }
+        }
+
+        // Show Planet/Asteroid Inspection Mode
+        function inspectBody(bodyObj) {
+            currentTarget = bodyObj;
+            isInspecting = true;
+            bodyObj.label.visible = false;
+
+            const targetPos = bodyObj.mesh.position;
+            const camDist = Math.max(bodyObj.data.radius * 3.8, 6.5);
+            const camPos = targetPos.clone().add(new THREE.Vector3(camDist, camDist * 0.4, camDist));
+
+            animateCamera(camPos, targetPos, 1400, () => {
+                // Open Rich Story Modal
+                document.getElementById('modal-badge').innerText = bodyObj.isAsteroid ? "Asteroid" : "Major Planet";
+                document.getElementById('modal-title').innerText = bodyObj.data.name + (bodyObj.data.myan ? ` (${bodyObj.data.myan})` : '');
+                document.getElementById('modal-subtitle').innerText = `နေမှ အကွာအဝေး: ${bodyObj.data.a} AU • ပတ်လမ်းကြာချိန်: ${bodyObj.data.period}`;
+                document.getElementById('modal-myth').innerText = bodyObj.data.myth || "ဒဏ္ဍာရီမှတ်တမ်း မရှိပါ။";
+                document.getElementById('modal-discovery').innerText = bodyObj.data.discovery || "သမိုင်းမှတ်တမ်း မရှိပါ။";
+                document.getElementById('modal-missions').innerText = bodyObj.data.missions || "မစ်ရှင်မှတ်တမ်း မရှိပါ။";
+                document.getElementById('story-modal').style.display = 'flex';
+            });
+        }
+
+        // Show Constellation Inspection
+        function focusConstellation(constObj) {
+            selectedConstellation = constObj;
+            const center = constObj.centerVec;
+            // Point camera from center of Earth towards constellation
+            const lookTarget = center.clone();
+            const camPos = new THREE.Vector3(0, 0, 0);
+
+            animateCamera(camPos, lookTarget, 1400, () => {
+                document.getElementById('const-quick-name').innerText = `🌌 ${constObj.data.name} (${constObj.data.myan})`;
+                document.getElementById('const-quick-info').style.display = 'flex';
+            });
+        }
+
+        function showConstellationStory(constObj) {
+            document.getElementById('modal-badge').innerText = "Constellation (ကြယ်စင်စု)";
+            document.getElementById('modal-title').innerText = `${constObj.data.name} (${constObj.data.myan})`;
+            document.getElementById('modal-subtitle').innerText = `Celestial Sphere Coordinates: RA ${constObj.data.center.ra}h | Dec ${constObj.data.center.dec}°`;
+            document.getElementById('modal-myth').innerText = constObj.data.myth;
+            document.getElementById('modal-discovery').innerText = constObj.data.discovery;
+            document.getElementById('modal-missions').innerText = constObj.data.missions;
+            document.getElementById('story-modal').style.display = 'flex';
+        }
+
+        // ၇။ EVENT LISTENERS
+        // Mode Switch
+        const btnSolar = document.getElementById('btn-mode-solar');
+        const btnConst = document.getElementById('btn-mode-const');
+
+        btnSolar.addEventListener('click', () => {
+            if (currentMode === 'SOLAR') return;
+            currentMode = 'SOLAR';
+            btnSolar.classList.add('active');
+            btnConst.classList.remove('active');
+            solarGroup.visible = true;
+            constellationGroup.visible = false;
+            planetsOpt.style.display = 'block';
+            asteroidsOpt.style.display = 'block';
+            constOptionGroup.style.display = 'none';
+            document.getElementById('target-selector').value = "Overview";
+            restoreOverview();
+        });
+
+        btnConst.addEventListener('click', () => {
+            if (currentMode === 'CONSTELLATION') return;
+            currentMode = 'CONSTELLATION';
+            btnConst.classList.add('active');
+            btnSolar.classList.remove('active');
+            solarGroup.visible = false;
+            constellationGroup.visible = true;
+            planetsOpt.style.display = 'none';
+            asteroidsOpt.style.display = 'none';
+            constOptionGroup.style.display = 'block';
+            document.getElementById('target-selector').value = "Overview";
+            restoreOverview();
+        });
+
+        // Dropdown selection
+        document.getElementById('target-selector').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === "Overview") {
+                restoreOverview();
+            } else if (val.startsWith("CONST_")) {
+                const cName = val.replace("CONST_", "");
+                const found = constellationsList.find(c => c.data.name === cName);
+                if (found) focusConstellation(found);
+            } else {
+                const found = trackedBodies.find(b => b.data.name === val);
+                if (found) inspectBody(found);
+            }
+        });
+
+        // Close Modal & Resume Orbit
+        document.getElementById('modal-close').addEventListener('click', () => {
+            document.getElementById('story-modal').style.display = 'none';
+            if (currentMode === 'SOLAR') {
+                restoreOverview();
+                document.getElementById('target-selector').value = "Overview";
+            }
+        });
+
+        document.getElementById('reset-cam-btn').addEventListener('click', () => {
+            document.getElementById('target-selector').value = "Overview";
+            restoreOverview();
+        });
+
+        document.getElementById('btn-show-const-desc').addEventListener('click', () => {
+            if (selectedConstellation) showConstellationStory(selectedConstellation);
+        });
+
+        // ၈။ ANIMATION LOOP
+        const simSpeed = 0.35;
+        function animate(time) {
+            requestAnimationFrame(animate);
+            TWEEN.update();
+
+            sunMesh.rotation.y += 0.002;
+            beltMesh.rotation.y += 0.0003;
+
+            // Update Planets Orbital Motion
+            trackedBodies.forEach(obj => {
+                const { mesh, cloudsMesh, data } = obj;
+
+                // When inspecting, freeze the orbital path travel and let the planet rotate proudly on its own axis!
+                if (!(isInspecting && currentTarget === obj)) {
+                    obj.angle += (0.015 / Math.pow(data.a, 0.75)) * simSpeed;
+                    const a = getVisualDistance(data.a);
+                    const b = a * Math.sqrt(Math.max(0.001, 1 - data.e * data.e));
+                    mesh.position.x = a * Math.cos(obj.angle) - (a * data.e);
+                    mesh.position.z = b * Math.sin(obj.angle);
+                }
+
+                // Axial Rotation
+                mesh.rotation.y += 0.016;
+                if (cloudsMesh) cloudsMesh.rotation.y += 0.022;
+            });
 
             controls.update();
             renderer.render(scene, camera);
