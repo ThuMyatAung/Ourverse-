@@ -1,115 +1,358 @@
 <!DOCTYPE html>
-<html lang="my">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Solar System & Asteroids</title>
+    <title>3D Solar System & Mythological Asteroids Observatory</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
-        #info {
-            position: absolute; top: 15px; left: 15px; color: #fff;
-            background: rgba(0,0,0,0.6); padding: 12px 18px; border-radius: 8px;
-            font-size: 14px; pointer-events: none; border: 1px solid #333;
+        body { margin: 0; overflow: hidden; background: #010206; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* UI Control Panel */
+        #ui-panel {
+            position: absolute; top: 16px; left: 16px; color: #fff;
+            background: rgba(12, 18, 30, 0.85); backdrop-filter: blur(10px);
+            padding: 16px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);
+            max-width: 320px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
         }
+        h1 { margin: 0 0 6px 0; font-size: 16px; color: #64b5f6; }
+        p { margin: 0 0 12px 0; font-size: 11px; color: #90a4ae; line-height: 1.4; }
+        
+        select, button {
+            width: 100%; padding: 8px 12px; background: #1e293b; color: #fff;
+            border: 1px solid #475569; border-radius: 6px; font-size: 13px;
+            margin-bottom: 8px; cursor: pointer; outline: none;
+        }
+        select:focus, button:hover { border-color: #64b5f6; background: #243248; }
+
+        /* Information Card */
+        #info-card {
+            margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.05);
+            border-radius: 8px; font-size: 12px; display: none; line-height: 1.5;
+            border-left: 3px solid #64b5f6;
+        }
+        #info-card b { color: #81d4fa; }
     </style>
-    <!-- Three.js & OrbitControls CDN -->
+    <!-- Three.js and OrbitControls -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
-    <div id="info">
-        <h3 style="margin:0 0 5px 0;">Solar System & Asteroid Belt</h3>
-        <p style="margin:0; opacity:0.8;">Mouse ဖြင့် ဆွဲလှည့်ပြီး Scroll ဖြင့် Zoom ဆွဲကြည့်နိုင်ပါသည်။</p>
+
+    <div id="ui-panel">
+        <h1>Cosmic Deities Observatory</h1>
+        <p>Logarithmic Scale | High Close-Up Zoom | Mythological Data</p>
+        
+        <label style="font-size: 11px; color: #b0bec5;">Target Focus & Close Zoom:</label>
+        <select id="target-selector">
+            <option value="Overview">-- Overview (Full System) --</option>
+            <optgroup label="Major Planets" id="planets-opt"></optgroup>
+            <optgroup label="Asteroids Named After Gods" id="asteroids-opt"></optgroup>
+        </select>
+
+        <button id="reset-cam-btn">Reset View</button>
+
+        <div id="info-card">
+            <div id="info-name" style="font-size: 14px; font-weight: bold; color: #fff; margin-bottom: 4px;"></div>
+            <div id="info-myth" style="color: #ffb74d; margin-bottom: 4px;"></div>
+            <div id="info-details"></div>
+        </div>
     </div>
 
+    <div id="canvas-container"></div>
+
     <script>
-        // ၁။ Scene, Camera, Renderer တည်ဆောက်ခြင်း
+        // ၁။ SCENE, CAMERA & RENDERER SETUP
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        // camera.near ကို 0.1 သတ်မှတ်ထားသဖြင့် ဥက္ကာခဲအနီးကပ်ဆုံးအထိ Clipping မဖြစ်ဘဲ Zoom ဆွဲနိုင်သည်
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 50000);
+        camera.position.set(0, 400, 600);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        camera.position.set(0, 150, 250);
-        controls.update();
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 0.5; // အနီးဆုံး ကပ်ကြည့်နိုင်သောအကွာအဝေး
+        controls.maxDistance = 8000;
 
-        // အလင်းရောင်
-        const ambientLight = new THREE.AmbientLight(0x333333);
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x334455);
         scene.add(ambientLight);
-        const sunLight = new THREE.PointLight(0xffffff, 2, 1000);
+        const sunLight = new THREE.PointLight(0xffffff, 2.5, 15000, 0.5);
         scene.add(sunLight);
 
-        // ၂။ နောက်ခံ ကြယ်စင်များ (Starfield Particles)
-        const starsGeo = new THREE.BufferGeometry();
-        const starsCount = 4000;
-        const starPositions = new Float32Array(starsCount * 3);
-        for(let i = 0; i < starsCount * 3; i++) {
-            starPositions[i] = (Math.random() - 0.5) * 1500;
+        // ၂။ PROCEDURAL HIGH-RES TEXTURE GENERATOR (Offline / Local Ready)
+        // Texture ပုံများ Network Error ကြောင့် မပျက်စေရန် အလိုအလျောက် ပုံဖော်ပေးသည့် Canvas Generator
+        function generatePlanetTexture(type, baseColorHex, detailColorHex) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = baseColorHex;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // မျက်နှာပြင် အစင်းကြောင်းများနှင့် ချိုင့်ခွက်များ ထည့်သွင်းခြင်း
+            for (let i = 0; i < 600; i++) {
+                ctx.fillStyle = detailColorHex;
+                ctx.globalAlpha = 0.08;
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const r = Math.random() * (type === 'gas' ? 120 : 15);
+                ctx.beginPath();
+                if (type === 'gas') {
+                    ctx.rect(0, y, canvas.width, Math.random() * 20);
+                } else {
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                }
+                ctx.fill();
+            }
+            return new THREE.CanvasTexture(canvas);
         }
-        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1 });
-        const starField = new THREE.Points(starsGeo, starsMat);
-        scene.add(starField);
 
-        // ၃။ နေ (Sun)
-        const sunGeo = new THREE.SphereGeometry(15, 32, 32);
-        const sunMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
-        const sun = new THREE.Mesh(sunGeo, sunMat);
-        scene.add(sun);
+        // Label Generator (Canvas 2D Text Sprite)
+        function createLabel(text, color = "#ffffff") {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'bold 22px sans-serif';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.fillText(text, 128, 40);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(24, 6, 1);
+            return sprite;
+        }
 
-        // ၄။ Asteroid Belt (ဥက္ကာခဲခါးပတ် - InstancedMesh သုံး၍ performance ကောင်းအောင် ဖန်တီးခြင်း)
-        const asteroidCount = 2000;
-        const asteroidGeo = new THREE.DodecahedronGeometry(0.6, 1);
-        const asteroidMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9 });
-        const asteroidBelt = new THREE.InstancedMesh(asteroidGeo, asteroidMat, asteroidCount);
-        
+        // Logarithmic Distance Formula
+        function getVisualDistance(au) {
+            return 80 * Math.pow(au, 0.52);
+        }
+
+        // ၃။ ASTRONOMICAL DATA SET
+        // နတ်ဘုရားများအမည်ဖြင့် ကင်ပွန်းတပ်ထားသော ဥက္ကာခဲများနှင့် ဂြိုဟ်ကြီးများ
+        const planetsData = [
+            { name: "Mercury", a: 0.387, e: 0.205, radius: 2.2, base: "#757575", detail: "#424242", period: 88, desc: "နေနှင့် အနီးဆုံး ဂြိုဟ်။" },
+            { name: "Venus",   a: 0.723, e: 0.007, radius: 4.5, base: "#e0a96d", detail: "#b2773e", period: 224.7, desc: "အလွန်ပူပြင်းသော လေထုဖိအားမြင့် ဂြိုဟ်။" },
+            { name: "Earth",   a: 1.000, e: 0.017, radius: 4.8, base: "#1e88e5", detail: "#4caf50", period: 365.2, desc: "သက်ရှိများ ရှင်သန်ရာ ကျွန်ုပ်တို့၏ ကမ္ဘာဂြိုဟ်။", hasClouds: true },
+            { name: "Mars",    a: 1.524, e: 0.093, radius: 3.2, base: "#d84315", detail: "#871f00", period: 687, desc: "သံအောက်ဆိုဒ် ဖုန်မှုန့်များဖုံးလွှမ်းသော ဂြိုဟ်နီကြီး။" },
+            { name: "Jupiter", a: 5.204, e: 0.048, radius: 14.0, base: "#d7ccc8", detail: "#a1887f", period: 4333, type: "gas", desc: "နေအဖွဲ့အစည်း၏ အကြီးဆုံး ဓာတ်ငွေ့ဂြိုဟ်ကြီး။" },
+            { name: "Saturn",  a: 9.582, e: 0.056, radius: 11.5, base: "#fff8e1", detail: "#ffe082", period: 10759, type: "gas", hasRing: true, desc: "လှပသော ရေခဲကွင်းကြီးများ ပိုင်ဆိုင်သည့် ဂြိုဟ်။" },
+            { name: "Uranus",  a: 19.20, e: 0.046, radius: 7.5, base: "#80deea", detail: "#00acc1", period: 30687, desc: "ဘေးတိုက်စောင်းလျက် လည်ပတ်နေသော အပြာနုရောင် ရေခဲဧရာမဂြိုဟ်။" },
+            { name: "Neptune", a: 30.05, e: 0.010, radius: 7.2, base: "#3949ab", detail: "#1a237e", period: 60190, desc: "အပြင်းထန်ဆုံး မုန်တိုင်းလေပြင်းများ တိုက်ခတ်ရာ နေရာ။" }
+        ];
+
+        const godAsteroidsData = [
+            { name: "1 Ceres",   myth: "Roman: စိုက်ပျိုးရေးနှင့် သီးနှံစောင့် နတ်ဘုရားမ", a: 2.767, e: 0.079, radius: 1.6, base: "#b0bec5", detail: "#78909c", period: 1682, desc: "Asteroid Belt ၏ အကြီးဆုံးသော Dwarf Planet။" },
+            { name: "2 Pallas",  myth: "Greek: အသီနာ ဉာဏ်ပညာနှင့် စစ်ပွဲနတ်ဘုရားမ", a: 2.772, e: 0.231, radius: 1.4, base: "#90a4ae", detail: "#546e7a", period: 1686, desc: "ဒုတိယမြောက် တွေ့ရှိခဲ့သည့် သမိုင်းဝင် ဥက္ကာခဲကြီး။" },
+            { name: "3 Juno",    myth: "Roman: နတ်ဘုရားမတို့၏ ဘုရင်မ (Jupiter ဇနီး)", a: 2.672, e: 0.255, radius: 1.2, base: "#cfd8dc", detail: "#90a4ae", period: 1595, desc: "ဂျူပီတာ၏ ဇနီး ဂျူနိုကို အစွဲပြုထားသည်။" },
+            { name: "4 Vesta",   myth: "Roman: မီးဖိုချောင်နှင့် အိမ်တွင်းမီး နတ်ဘုရားမ", a: 2.362, e: 0.089, radius: 1.4, base: "#eceff1", detail: "#b0bec5", period: 1325, desc: "ကမ္ဘာမှ သာမန်မျက်စိဖြင့် တစ်ခါတစ်ရံ မြင်နိုင်သော အတောက်ပဆုံး ဥက္ကာခဲ။" },
+            { name: "5 Astraea", myth: "Greek: ဖြူစင်မှုနှင့် တရားမျှတမှု နတ်ဘုရားမ", a: 2.574, e: 0.191, radius: 0.9, base: "#b0bec5", detail: "#607d8b", period: 1509, desc: "ရွှေခေတ်၏ တရားမျှတမှုနတ်ဘုရားမ အမည်ပေးထားသည်။" },
+            { name: "10 Hygiea", myth: "Greek: ကျန်းမာရေးနှင့် သန့်ရှင်းရေး နတ်ဘုရားမ", a: 3.142, e: 0.117, radius: 1.3, base: "#78909c", detail: "#455a64", period: 2034, desc: "Asteroid Belt တွင် စတုတ္ထအကြီးဆုံး အရာဝတ္ထု။" },
+            { name: "16 Psyche", myth: "Greek: စိတ်ဝိညာဉ်နတ်ဘုရားမ", a: 2.924, e: 0.134, radius: 1.2, base: "#d7ccc8", detail: "#8d6e63", period: 1828, desc: "ရွှေ၊ သံနှင့် နီကယ် သတ္တုများ အဓိကပါဝင်သော ထူးခြားသည့် ဥက္ကာခဲ။" },
+            { name: "433 Eros",  myth: "Greek: အချစ်နှင့် တပ်မက်ခြင်း နတ်ဘုရား", a: 1.458, e: 0.223, radius: 0.8, base: "#ffccbc", detail: "#d84315", period: 643, desc: "လူသားတို့ ယာဉ်ဆင်းသက်ဖူးသော ပထမဆုံး Near-Earth Asteroid။" },
+            { name: "99942 Apophis", myth: "Egyptian: အမှောင်ထုနှင့် ဖျက်ဆီးခြင်း နတ်ဘုရား", a: 0.922, e: 0.191, radius: 0.7, base: "#ff8a80", detail: "#b71c1c", period: 323, desc: "ကမ္ဘာအနီး ဖြတ်သန်းသွားမည့် နာမည်ကျော် အန္တရာယ်ရှိ ဥက္ကာခဲ။" },
+            { name: "101955 Bennu",  myth: "Egyptian: နေနတ်ဘုရားနှင့် ပြန်လည်မွေးဖွားခြင်းငှက်", a: 1.126, e: 0.203, radius: 0.75, base: "#9e9e9e", detail: "#424242", period: 436, desc: "NASA OSIRIS-REx ယာဉ်က မြေသားနမူနာ သယ်ဆောင်ခဲ့သော ဥက္ကာခဲ။" },
+            { name: "136199 Eris",   myth: "Greek: သဘောထားကွဲလွဲခြင်း နတ်ဘုရားမ", a: 67.78, e: 0.441, radius: 2.3, base: "#ede7f6", detail: "#b39ddb", period: 204000, desc: "ပလူတိုထက် ပိုမိုဝေးကွာသော အစွန်အဖျားမှ Dwarf Planet ကြီး။" }
+        ];
+
+        // ၄။ SUN CREATION
+        const sunGeo = new THREE.SphereGeometry(22, 32, 32);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xffe082 });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        scene.add(sunMesh);
+        sunMesh.add(createLabel("Sun", "#ffe082"));
+
+        // Orbit Path Drawer
+        function createOrbitPath(a_AU, e, color) {
+            const points = [];
+            const segments = 128;
+            const a = getVisualDistance(a_AU);
+            const b = a * Math.sqrt(Math.max(0.001, 1 - e * e));
+            const c = a * e;
+
+            for (let i = 0; i <= segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                points.push(new THREE.Vector3(a * Math.cos(theta) - c, 0, b * Math.sin(theta)));
+            }
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35 }));
+        }
+
+        // ၅။ BUILD CELESTIAL BODIES (Planets & Asteroids)
+        const allBodies = [];
+        const planetsOpt = document.getElementById('planets-opt');
+        const asteroidsOpt = document.getElementById('asteroids-opt');
+
+        function registerBody(data, isAsteroid = false) {
+            const orbitColor = isAsteroid ? 0x00e5ff : 0x455a64;
+            scene.add(createOrbitPath(data.a, data.e, orbitColor));
+
+            const geo = new THREE.SphereGeometry(data.radius, 32, 32);
+            const texture = generatePlanetTexture(data.type, data.base, data.detail);
+            const mat = new THREE.MeshStandardMaterial({ 
+                map: texture, 
+                roughness: 0.75,
+                metalness: data.name.includes("Psyche") ? 0.7 : 0.1 
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // ကမ္ဘာဂြိုဟ် မိုးတိမ်လွှာ (Atmospheric Cloud Layer)
+            let cloudsMesh = null;
+            if (data.hasClouds) {
+                const cloudGeo = new THREE.SphereGeometry(data.radius + 0.15, 32, 32);
+                const cloudTexture = generatePlanetTexture('cloud', '#ffffff', '#90caf9');
+                const cloudMat = new THREE.MeshStandardMaterial({ map: cloudTexture, transparent: true, opacity: 0.38 });
+                cloudsMesh = new THREE.Mesh(cloudGeo, cloudMat);
+                mesh.add(cloudsMesh);
+            }
+
+            // စနေဂြိုဟ် ရေခဲကွင်း (Saturn's Rings)
+            if (data.hasRing) {
+                const ringGeo = new THREE.RingGeometry(data.radius + 3, data.radius + 11, 48);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0xd7ccc8, side: THREE.DoubleSide, transparent: true, opacity: 0.75 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2.3;
+                mesh.add(ring);
+            }
+
+            // Labels
+            const labelColor = isAsteroid ? "#4fc3f7" : "#ffffff";
+            const label = createLabel(data.name, labelColor);
+            label.position.y = data.radius + (isAsteroid ? 3 : 5);
+            mesh.add(label);
+
+            scene.add(mesh);
+            const bodyObj = { mesh, cloudsMesh, data, angle: Math.random() * Math.PI * 2, isAsteroid };
+            allBodies.push(bodyObj);
+
+            // Populate UI Options
+            const opt = document.createElement('option');
+            opt.value = data.name;
+            opt.innerText = data.name + (data.myth ? ` (${data.myth.split(':')[0]})` : '');
+            (isAsteroid ? asteroidsOpt : planetsOpt).appendChild(opt);
+        }
+
+        planetsData.forEach(d => registerBody(d, false));
+        godAsteroidsData.forEach(d => registerBody(d, true));
+
+        // ၆။ INSTANCED MESH FOR MAIN ASTEROID BELT (3,000 Rocks)
+        const beltCount = 3000;
+        const asteroidBelt = new THREE.InstancedMesh(
+            new THREE.DodecahedronGeometry(0.4, 0),
+            new THREE.MeshStandardMaterial({ color: 0x607d8b, roughness: 0.9 }),
+            beltCount
+        );
         const dummy = new THREE.Object3D();
-        for (let i = 0; i < asteroidCount; i++) {
-            // အင်္ဂါဂြိုဟ်နှင့် ဂျူပီတာကြား အကွာအဝေး (ဥပမာ: radius 90 မှ 130 ကြား)
-            const radius = 95 + Math.random() * 35;
+        for (let i = 0; i < beltCount; i++) {
+            const au = 2.1 + Math.random() * 1.1;
+            const dist = getVisualDistance(au);
             const angle = Math.random() * Math.PI * 2;
-            const y = (Math.random() - 0.5) * 8; // ဒေါင်လိုက် အနည်းငယ် ပြန့်ကျဲစေခြင်း
-
-            dummy.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+            dummy.position.set(Math.cos(angle) * dist, (Math.random() - 0.5) * 10, Math.sin(angle) * dist);
             dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-            const scale = 0.5 + Math.random() * 1.5;
+            const scale = 0.4 + Math.random() * 1.2;
             dummy.scale.set(scale, scale, scale);
             dummy.updateMatrix();
-
             asteroidBelt.setMatrixAt(i, dummy.matrix);
         }
         scene.add(asteroidBelt);
 
-        // ၅။ ဂြိုဟ်အချို့ ထည့်သွင်းခြင်း (နမူနာ ကမ္ဘာ)
-        const earthGeo = new THREE.SphereGeometry(4, 32, 32);
-        const earthMat = new THREE.MeshStandardMaterial({ color: 0x2233ff, roughness: 0.5 });
-        const earth = new THREE.Mesh(earthGeo, earthMat);
-        scene.add(earth);
+        // ၇။ DEEP SPACE STARFIELD PARTICLES
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 4500;
+        const starPos = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount * 3; i += 3) {
+            const rad = 3000 + Math.random() * 3000;
+            const u = Math.random(), v = Math.random();
+            const theta = u * 2.0 * Math.PI, phi = Math.acos(2.0 * v - 1.0);
+            starPos[i] = rad * Math.sin(phi) * Math.cos(theta);
+            starPos[i+1] = rad * Math.sin(phi) * Math.sin(theta);
+            starPos[i+2] = rad * Math.cos(phi);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xbbdefb, size: 2 })));
 
-        // Animation Loop
-        let earthAngle = 0;
+        // ၈။ INTERACTIVE ZOOM & TRACKING ENGINE
+        let currentTarget = null;
+        let targetCamDistance = 30;
+
+        function setFocus(name) {
+            const infoCard = document.getElementById('info-card');
+            if (name === "Overview") {
+                currentTarget = null;
+                infoCard.style.display = "none";
+                return;
+            }
+            const found = allBodies.find(b => b.data.name === name);
+            if (found) {
+                currentTarget = found;
+                // အနီးကပ် Zoom အကွာအဝေး (အရာဝတ္ထုအရွယ်အစား၏ ၂.၅ ဆ အနီးဆုံးကပ်ပေးသည်)
+                targetCamDistance = found.data.radius * 2.8;
+
+                // Update Info Panel
+                document.getElementById('info-name').innerText = found.data.name;
+                document.getElementById('info-myth').innerText = found.data.myth ? found.data.myth : "";
+                document.getElementById('info-details').innerHTML = `
+                    <b>Orbit:</b> ${found.data.a} AU (${found.data.period} Earth days)<br>
+                    <b>Eccentricity:</b> ${found.data.e}<br>
+                    <b>Detail:</b> ${found.data.desc}
+                `;
+                infoCard.style.display = "block";
+            }
+        }
+
+        document.getElementById('target-selector').addEventListener('change', (e) => setFocus(e.target.value));
+        document.getElementById('reset-cam-btn').addEventListener('click', () => {
+            document.getElementById('target-selector').value = "Overview";
+            setFocus("Overview");
+            controls.target.set(0, 0, 0);
+            camera.position.set(0, 400, 600);
+        });
+
+        // ၉။ ANIMATION & AUTO-TRACKING LOOP
+        const simSpeed = 0.4;
         function animate() {
             requestAnimationFrame(animate);
 
-            // နေလည်ပတ်မှု
-            sun.rotation.y += 0.002;
+            sunMesh.rotation.y += 0.002;
+            asteroidBelt.rotation.y += 0.0003;
 
-            // ဥက္ကာခဲများ တစ်ပြိုင်နက် လှည့်ပတ်ခြင်း
-            asteroidBelt.rotation.y += 0.0008;
+            // ဂြိုဟ်များနှင့် ဥက္ကာခဲများ၏ လှည့်ပတ်မှု လမ်းကြောင်းများ
+            allBodies.forEach(obj => {
+                const { mesh, cloudsMesh, data } = obj;
+                obj.angle += (1 / data.period) * simSpeed * 5;
 
-            // ကမ္ဘာဂြိုဟ် ပတ်လမ်းအတိုင်း လည်ပတ်ခြင်း
-            earthAngle += 0.005;
-            earth.position.x = Math.cos(earthAngle) * 60;
-            earth.position.z = Math.sin(earthAngle) * 60;
-            earth.rotation.y += 0.01;
+                const a = getVisualDistance(data.a);
+                const b = a * Math.sqrt(Math.max(0.001, 1 - data.e * data.e));
+                mesh.position.x = a * Math.cos(obj.angle) - (a * data.e);
+                mesh.position.z = b * Math.sin(obj.angle);
+                mesh.rotation.y += 0.012;
 
+                if (cloudsMesh) cloudsMesh.rotation.y += 0.016; // မိုးတိမ်လွှာကို ပိုမြန်စွာ လှည့်ပေးခြင်း
+            });
+
+            // TARGET TRACKING (ကင်မရာက ဥက္ကာခဲ/ဂြိုဟ်ဆီသို့ ချောမွေ့စွာ ရွေ့လျားသွားပြီး နောက်ကွယ်မှ အနီးကပ် လိုက်ပါခြင်း)
+            if (currentTarget) {
+                const targetPos = currentTarget.mesh.position;
+                // Controls ၏ ဗဟိုကို target ဆီ Smooth Lerp လုပ်ခြင်း
+                controls.target.lerp(targetPos, 0.08);
+
+                // ကင်မရာကို ဂြိုဟ်၏ အနီးဆုံးသို့ အလိုအလျောက် ဆွဲယူပေးခြင်း
+                const offset = camera.position.clone().sub(controls.target).normalize().multiplyScalar(targetCamDistance);
+                camera.position.lerp(targetPos.clone().add(offset), 0.06);
+            }
+
+            controls.update();
             renderer.render(scene, camera);
         }
         animate();
 
-        // Responsive Window Resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
