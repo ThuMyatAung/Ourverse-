@@ -40,7 +40,8 @@
 
         /* AR Compass / Real-time Tracker Guide HUD */
         #ar-hud {
-            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            position: absolute; top: auto; bottom: 14px; left: 50%; transform: translateX(-50%);
+            flex-wrap: wrap; justify-content: center; max-width: 94vw; row-gap: 4px;
             background: rgba(10, 16, 28, 0.92); backdrop-filter: blur(14px);
             border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 20px;
             padding: 8px 18px; font-size: 12px; color: #38bdf8; z-index: 90;
@@ -143,6 +144,8 @@
         <span>🧭 အရပ်: <span class="hud-pill" id="hud-azimuth">0° (North)</span></span>
         <span>• မော့ထောင့်: <span class="hud-pill" id="hud-altitude">0°</span></span>
         <span id="hud-guide" style="color:#fde047; margin-left:6px;"></span>
+        <span>&bull; Sensor: <span class="hud-pill" id="hud-sensor">&hellip;</span></span>
+        <button id="hud-sensor-btn" style="background:rgba(56,189,248,0.25); border:1px solid rgba(56,189,248,0.6); color:#e0f2fe; border-radius:8px; padding:3px 10px; font-size:12px; cursor:pointer;">&#129517; Sensor ဖွင့်ရန် နှိပ်ပါ</button>
     </div>
 
     <!-- Inspection Bottom Sheet -->
@@ -1429,10 +1432,12 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
         const hudAzimuth = document.getElementById('hud-azimuth');
         const hudAltitude = document.getElementById('hud-altitude');
         const hudGuide = document.getElementById('hud-guide');
+        const hudSensor = document.getElementById('hud-sensor');
 
         let skyYaw = 0, skyPitch = 0;
         let isPointerDown = false, prevX = 0, prevY = 0;
         let sensorAlpha = null, sensorBeta = null, sensorGamma = null;
+        let sensorLastTs = 0, orientationAttached = false;
 
         function updateARCamera() {
             if (!isARActive) return;
@@ -1468,6 +1473,10 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
 
             hudAzimuth.innerText = `${azDeg}° (${cardinal})`;
             hudAltitude.innerText = `${altDeg}°`;
+
+            const sensorOk = sensorLastTs && (Date.now() - sensorLastTs < 1500);
+            hudSensor.innerText = sensorOk ? '✅ OK' : '❌';
+            document.getElementById('hud-sensor-btn').style.display = sensorOk ? 'none' : 'inline-block';
 
             // Live Compass Guide: name whatever is actually in front of the camera right now
             let guideText = "💡 ဖုန်းကို မိုးပေါ်သို့ မော့ကြည့်ပါ သို့မဟုတ် ပွတ်ဆွဲပါ";
@@ -1505,6 +1514,7 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
 
         function handleOrientation(e) {
             if (!isARActive) return;
+            sensorLastTs = Date.now();
             if (e.webkitCompassHeading !== undefined) {
                 sensorAlpha = 360 - e.webkitCompassHeading;
                 sensorBeta = e.beta;
@@ -1515,6 +1525,25 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
                 sensorGamma = e.gamma;
             }
         }
+
+        function attachOrientation() {
+            if (orientationAttached) return;
+            orientationAttached = true;
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            window.addEventListener('deviceorientation', handleOrientation, true);
+        }
+        function requestOrientationPermission() {
+            // iOS: this MUST be called inside the tap handler itself — after any await
+            // (e.g. the camera prompt) Safari silently refuses and no sensor data ever flows.
+            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then((perm) => {
+                    if (perm === 'granted') attachOrientation();
+                }).catch(() => {});
+            } else {
+                attachOrientation();
+            }
+        }
+        document.getElementById('hud-sensor-btn').addEventListener('click', () => { requestOrientationPermission(); });
 
         async function startARMode() {
             isARActive = true;
@@ -1529,6 +1558,7 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
             controls.enabled = false;
             camera.position.set(0, 0, 0);
             skyYaw = 0; skyPitch = 0;
+            buildRealARSky();
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -1540,17 +1570,7 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
                 console.warn("Camera could not be opened:", err);
             }
 
-            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const perm = await DeviceOrientationEvent.requestPermission();
-                    if (perm === 'granted') window.addEventListener('deviceorientation', handleOrientation);
-                } catch (e) {}
-            } else {
-                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-                window.addEventListener('deviceorientation', handleOrientation, true);
-            }
-
-            buildRealARSky();
+            attachOrientation();
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((pos) => {
                     userLat = pos.coords.latitude; userLon = pos.coords.longitude;
@@ -1568,6 +1588,7 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
 
             window.removeEventListener('deviceorientationabsolute', handleOrientation);
             window.removeEventListener('deviceorientation', handleOrientation);
+            orientationAttached = false;
 
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(t => t.stop());
@@ -1739,6 +1760,7 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
             planetsOpt.style.display = 'none'; asteroidsOpt.style.display = 'none';
             constOptionGroup.style.display = 'block';
 
+            requestOrientationPermission();
             startARMode();
         });
 
