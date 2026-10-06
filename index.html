@@ -974,9 +974,48 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
             constOptionGroup.appendChild(opt);
         });
 
+        // Milky Way band on the celestial globe (AR mode has its own alt-az version)
+        (function buildMilkyWayGlobe() {
+            const rows = [ { b: 0, op: 0.5, sc: 150 }, { b: -8, op: 0.26, sc: 120 }, { b: 8, op: 0.26, sc: 120 } ];
+            rows.forEach(r => {
+                for (let l = 0; l < 360; l += 6) {
+                    const rd = galacticToRaDec(l, r.b);
+                    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowingStarTex, color: 0xfdf6e3, transparent: true, opacity: r.op * milkyWayBrightness(l), blending: THREE.AdditiveBlending, depthWrite: false }));
+                    sp.scale.set(r.sc, r.sc, 1);
+                    sp.position.copy(radecToSkyDome(rd.ra, rd.dec));
+                    constellationGroup.add(sp);
+                }
+            });
+            const gc = galacticToRaDec(0, 0);
+            const gcLabel = createLabelSprite("🌌 Milky Way (နဂါးငွေ့တန်း)", "#fde68a");
+            gcLabel.scale.set(130, 32, 1);
+            gcLabel.position.copy(radecToSkyDome(gc.ra, gc.dec)).multiplyScalar(0.95);
+            constellationGroup.add(gcLabel);
+        })();
+
         // ၆။ BUILD HIGH-CONTRAST REAL AR SKY OVERLAY (HORIZON + COMPASS + GLOWING STARS)
         const arInteractiveMeshes = [];
         const arGuideTargets = [];
+        // Galactic (l, b) -> equatorial RA(hours) / Dec(deg), J2000 rotation matrix (transposed)
+        function galacticToRaDec(lDeg, bDeg) {
+            const l = lDeg * Math.PI / 180, b = bDeg * Math.PI / 180;
+            const gx = Math.cos(b) * Math.cos(l), gy = Math.cos(b) * Math.sin(l), gz = Math.sin(b);
+            const X = -0.0548755604 * gx + 0.4941094279 * gy - 0.8676661490 * gz;
+            const Y = -0.8734370902 * gx - 0.4448296300 * gy - 0.1980763734 * gz;
+            const Z = -0.4838350155 * gx + 0.7469822445 * gy + 0.4559837762 * gz;
+            return { ra: (((Math.atan2(Y, X) * 180 / Math.PI) + 360) % 360) / 15, dec: Math.asin(Math.max(-1, Math.min(1, Z))) * 180 / Math.PI };
+        }
+        function milkyWayBrightness(l) {
+            const dl = ((l + 540) % 360) - 180;
+            return Math.min(1, 0.30 + 0.85 * Math.exp(-Math.pow(dl / 50, 2)) + 0.30 * Math.exp(-Math.pow((l - 80) / 22, 2)));
+        }
+        const MW_INFO = {
+            name: "Milky Way Core", myan: "နဂါးငွေ့တန်း အလယ်ပိုင်း", period: "Galactic Center · Sagittarius ဘက်အရပ်",
+            discovery: "နဂါးငွေ့တန်း (Milky Way) သည် ကျွန်ုပ်တို့ နေထိုင်ရာ ဂလက်ဆီ ဖြစ်ပြီး ကြယ် ပေါင်း ၁၀၀–၄၀၀ ဘီလီယံ ပါဝင်သည်။ ၎င်း၏ အလယ်ဗဟို (Galactic Center) သည် Sagittarius ကြယ်စင်စု ဘက်အရပ်၊ ကမ္ဘာမှ အလင်းနှစ် ၂၆,၀၀၀ ကွာေဝးတွင် တည်ရှိပြီး အလယ်တွင် Sagittarius A* မဟာ အမည်းတွင်း (နေ ထုထည်၏ ၄.၃ သန်း ဆ) ရှိသည်။ ကောင်းကင်တွင် ဖြန့်ကျက် တွေ့ရသော အလင်းတန်းကြီးသည် ဂလက်ဆီ၏ လက်တံများကို အတွင်းဘက်မှ မြင်ရခြင်း ဖြစ်သည်။",
+            missions: "ဓာတ်ပုံ ရိုက်ရန်: လအလင်း မရှိသော (လကွယ်နား) ည၊ မြို့အလင်း နည်းသော နေရာမှ အနောက်တောင် ဘက်ကို ဦးတည်ပါ။ ဧပြီ–စက်တင်ဘာ ညနေပိုင်းတွင် ဗဟိုသည် ပိုမြင့်ပြီး ပိုရှည်ကြာ မြင်ရသည်။ Tripod ထောက်၍ exposure ၁၅–၂၅ စက္ကန့်၊ ISO 1600–3200၊ အကျယ်ဆုံး aperture ဖြင့် ရိုက်ပါ။ AR လမ်းညွှန် (HUD) က ဗဟို ရှိရာ အရပ်ကို အချိန်နှင့်တပြေးညီ ပြပေးမည်။",
+            myth: "ဂရိဒဏ္ဍာရီတွင် Hera နတ်ဘုရားမ၏ နို့ရည် ကောင်းကင်သို့ ပက်ဖျန်းရာမှ ဖြစ်လာသည်ဟု ဆိုရာမှ Milky Way အမည် ဖြစ်လာသည်။ မြန်မာ့ရိုးရာတွင် နဂါးငွေ့တန်း ဟု ခေါ်ဝေါ်သည်။"
+        };
+
         function buildRealARSky() {
             while (arSkyGroup.children.length > 0) { arSkyGroup.remove(arSkyGroup.children[0]); }
             arInteractiveMeshes.length = 0;
@@ -1093,6 +1132,32 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
             arSkyGroup.add(moonLabel);
             const mGA = gAzAlt(moonPos); arGuideTargets.push({ name: "🌙 Moon (လမင်း)", az: mGA.az, alt: mGA.alt });
             arInteractiveMeshes.push(moonLabel);
+
+            // E. MILKY WAY BAND (galactic equator as a soft glowing band; brightest toward the core)
+            const mwRows = [ { b: 0, op: 0.55, sc: 130 }, { b: -8, op: 0.30, sc: 105 }, { b: 8, op: 0.30, sc: 105 } ];
+            mwRows.forEach(r => {
+                for (let l = 0; l < 360; l += 6) {
+                    const rd = galacticToRaDec(l, r.b);
+                    const pos = getHorizontalVector(rd.ra, rd.dec, 640);
+                    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowingStarTex, color: 0xfdf6e3, transparent: true, opacity: r.op * milkyWayBrightness(l), blending: THREE.AdditiveBlending, depthWrite: false }));
+                    sp.scale.set(r.sc, r.sc, 1);
+                    sp.position.copy(pos);
+                    arSkyGroup.add(sp);
+                }
+            });
+            const gcRD = galacticToRaDec(0, 0);
+            const gcPos = getHorizontalVector(gcRD.ra, gcRD.dec, 615);
+            const gcGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowingStarTex, color: 0xfff3c4, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+            gcGlow.scale.set(210, 210, 1);
+            gcGlow.position.copy(gcPos);
+            arSkyGroup.add(gcGlow);
+            const gcLabel = createLabelSprite("🌌 Milky Way Core (နဂါးငွေ့တန်း ဗဟို)", "#fde68a");
+            gcLabel.scale.set(84, 21, 1);
+            gcLabel.position.copy(gcPos).add(new THREE.Vector3(0, 30, 0));
+            gcLabel.userData = { name: "Milky Way Core", data: MW_INFO };
+            arSkyGroup.add(gcLabel);
+            arInteractiveMeshes.push(gcLabel);
+            const gcGA = gAzAlt(gcPos); arGuideTargets.push({ name: "🌌 နဂါးငွေ့တန်း အလယ်ပိုင်း (Milky Way Core)", az: gcGA.az, alt: gcGA.alt });
         }
 
         // ---- Richer info texts (override the one-line summaries in the data tables) ----
