@@ -541,9 +541,9 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
         }
 
         // ---- Texture support (files live in ./textures/ next to this file) ----
-        const texLoader = new THREE.TextureLoader();
+        function getTexLoader() { if (!getTexLoader._l) getTexLoader._l = new THREE.TextureLoader(); return getTexLoader._l; }
         function loadBodyTexture(mat, file, onLoad) {
-            texLoader.load(file,
+            getTexLoader().load(file,
                 (tex) => { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; if (onLoad) onLoad(tex); },
                 undefined,
                 () => { /* texture missing -> keep the body's tuned solid colour */ });
@@ -609,7 +609,7 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
                 ring.rotation.x = Math.PI / 2.3;
                 bodyContainer.add(ring);
                 if (TEXTURE_FILES['SaturnRing']) {
-                    texLoader.load(TEXTURE_FILES['SaturnRing'], (tex) => {
+                    getTexLoader().load(TEXTURE_FILES['SaturnRing'], (tex) => {
                         // Remap ring UVs radially so the strip texture reads inner->outer
                         const posA = ringGeo.attributes.position, uvA = ringGeo.attributes.uv;
                         const inner = data.radius + 2.5, outer = data.radius + 10;
@@ -630,7 +630,7 @@ function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
                     new THREE.SphereGeometry(data.radius * 1.035, 32, 32),
                     new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, depthWrite: false })
                 );
-                texLoader.load(TEXTURE_FILES['EarthClouds'], (tex) => {
+                getTexLoader().load(TEXTURE_FILES['EarthClouds'], (tex) => {
                     cloudsMesh.material.alphaMap = tex; cloudsMesh.material.needsUpdate = true;
                 }, undefined, () => { cloudsMesh.visible = false; });
                 bodyContainer.add(cloudsMesh);
