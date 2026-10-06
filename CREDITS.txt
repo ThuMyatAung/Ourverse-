@@ -1,0 +1,28 @@
+Ourverse — Cosmic Observatory 3D (upgraded build)
+================================================
+
+TEXTURES (in ./textures/)
+Planet, Sun, Moon and Saturn-ring textures by Solar System Scope
+(https://www.solarsystemscope.com/textures/), distributed under
+Creative Commons Attribution 4.0 International (CC BY 4.0),
+derived from NASA elevation and imagery data.
+Note: the Ceres, Haumea, Makemake and Eris maps are Solar System
+Scope's "fictional" artistic renderings (no complete real surface
+maps of those bodies exist). Pluto keeps its solid colour — no
+suitable free equirectangular map was available in these sets.
+Asteroids without a photo map use a procedurally generated rocky
+surface tinted with each body's colour.
+
+POSITIONS
+Planetary elements: NASA/JPL approximate Keplerian elements
+(valid 1800–2050). Asteroid elements: NASA/JPL Small-Body
+Database (SBDB) osculating elements, epoch JD 2461200.5
+(Bennu: JD 2455562.5). Moon: simplified lunar theory.
+Positions verified against Swiss Ephemeris (max longitude error
+under 0.5 degrees across 1990–2030 in the J2000 frame).
+Satellite markers (ISS, Hubble) are schematic orbits, not live
+TLE tracking; JWST rides the Sun–Earth L2 point with a halo wobble.
+
+SOUND
+Per-planet tones use Hans Cousto's "Cosmic Octave" planetary
+frequencies, synthesized live with WebAudio (no audio files).

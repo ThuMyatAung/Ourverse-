@@ -92,6 +92,7 @@
         .info-card.missions h4 { color: #d8b4fe; }
         .info-card.myth-section { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.04); }
         .info-card.myth-section h4 { color: #fcd34d; font-size: 14px; }
+        #sim-time-input { padding: 6px 8px; background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 8px; font-size: 12px; color-scheme: dark; }
     </style>
     <!-- Three.js, OrbitControls, Tween.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -114,11 +115,24 @@
             <option value="Overview">-- Overview (ခြုံငုံကြည့်မည်) --</option>
             <optgroup label="Major Planets" id="planets-opt"></optgroup>
             <optgroup label="Mythological Asteroids (၂၈ ခု)" id="asteroids-opt"></optgroup>
+            <optgroup label="Comets, Satellites & Spacecraft" id="craft-opt"></optgroup>
             <optgroup label="Constellations (၂၀ ခု)" id="constellations-opt" style="display:none;"></optgroup>
         </select>
 
         <button class="action-btn" id="reset-cam-btn">Overview</button>
         <button class="action-btn" id="audio-toggle-btn">🔊 Sound: Off</button>
+        <span id="sim-controls">
+            <input type="datetime-local" id="sim-time-input" title="Simulation date & time">
+            <button class="action-btn" id="sim-now-btn">⏰ Now</button>
+            <button class="action-btn" id="sim-play-btn">⏸ Pause</button>
+            <select id="sim-speed" title="Time speed">
+                <option value="0.1">0.1 day/s</option>
+                <option value="1" selected>1 day/s</option>
+                <option value="7">7 days/s</option>
+                <option value="30">30 days/s</option>
+            </select>
+            <span id="sim-clock" style="font-size:11.5px; color:#7dd3fc; white-space:nowrap;"></span>
+        </span>
     </div>
 
     <!-- AR Mode HUD Info & Compass Guide -->
@@ -335,6 +349,174 @@
             { name: "Canis Major", myan: "ခွေးကြီးကြယ်စု", center: { ra: 6.8, dec: -22 }, stars: [{ra:6.75, dec:-16.7}, {ra:6.97, dec:-28.9}, {ra:7.14, dec:-26.4}, {ra:6.37, dec:-17.9}], edges: [[0,1], [1,2], [0,3]], myth: "မုဆိုးကြီး အိုရိုင်ယွန်၏ သစ္စာရှိသော အမဲလိုက်ခွေးကြီး ဖြစ်သည်။", discovery: "အတောက်ပဆုံးကြယ် ဆီးရီးယပ်စ် (Sirius) ပါဝင်သည်။", missions: "ရှေးအီဂျစ်တို့က နိုင်းမြစ်ရေလျှံမည့်အချိန်ကို Sirius ဖြင့် ကြည့်ခဲ့ကြသည်။" }
         ];
 
+// ============================================================
+// REAL-POSITION ENGINE (Kepler)
+// Elements: JPL approximate Keplerian elements (planets/Pluto),
+// JPL Small-Body Database osculating elements (asteroids, epoch
+// JD 2461200.5 unless noted), simplified lunar theory (Moon).
+// All positions: heliocentric ecliptic J2000, AU.
+// ============================================================
+
+const PLANET_ELEMENTS = {
+  //          a0         e0         I0          L0            varpi0        Omega0      aDot       eDot        IDot        LDot          varpiDot    OmegaDot   (rates per Julian century)
+  Mercury: [0.38709927, 0.20563593, 7.00497902, 252.25032350, 77.45779628, 48.33076593, 0.00000037, 0.00001906, -0.00594749, 149472.67411175, 0.16047689, -0.12534081],
+  Venus:   [0.72333566, 0.00677672, 3.39467605, 181.97909950, 131.60246718, 76.67984255, 0.00000390, -0.00004107, -0.00078890, 58517.81538729, 0.00268329, -0.27769418],
+  Earth:   [1.00000261, 0.01671123, -0.00001531, 100.46457166, 102.93768193, 0.0, 0.00000562, -0.00004392, -0.01294668, 35999.37244981, 0.32327364, 0.0],
+  Mars:    [1.52371034, 0.09339410, 1.84969142, -4.55343205, -23.94362959, 49.55953891, 0.00001847, 0.00007882, -0.00813131, 19140.30268499, 0.44441088, -0.29257343],
+  Jupiter: [5.20288700, 0.04838624, 1.30439695, 34.39644051, 14.72847983, 100.47390909, -0.00011607, -0.00013253, -0.00183714, 3034.74612775, 0.21252668, 0.20469106],
+  Saturn:  [9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448, -0.00125060, -0.00050991, 0.00193609, 1222.49362201, -0.41897216, -0.28867794],
+  Uranus:  [19.18916464, 0.04725744, 0.77263783, 313.23810451, 170.95427630, 74.01692503, -0.00196176, -0.00004397, -0.00242939, 428.48202785, 0.40805281, 0.04240589],
+  Neptune: [30.06992276, 0.00859048, 1.77004347, -55.12002969, 44.96476227, 131.78422574, 0.00026291, 0.00005105, 0.00035372, 218.45945325, -0.32241464, -0.00508664],
+  Pluto:   [39.482, 0.2488, 17.140, 238.929, 224.069, 110.304, 0.0, 0.0, 0.0, 145.18042957, 0.0, 0.0]
+};
+
+// Asteroid/small-body elements from NASA/JPL SBDB: [a, e, i, om, w, ma, n (deg/day), epochJD]
+const ASTEROID_ELEMENTS = {
+  "1 Ceres": [2.76555, 0.07969, 10.58803, 80.24863, 73.29421, 274.41935, 0.214304, 2461200.5],
+  "2 Pallas": [2.76956, 0.23070, 34.93279, 172.88662, 310.96992, 254.24965, 0.213840, 2461200.5],
+  "3 Juno": [2.67099, 0.25570, 12.98659, 169.81160, 247.89507, 262.73229, 0.225785, 2461200.5],
+  "4 Vesta": [2.36137, 0.09020, 7.14393, 103.70129, 151.46865, 81.19016, 0.271618, 2461200.5],
+  "5 Astraea": [2.57681, 0.18757, 5.35968, 141.44721, 359.37563, 181.47820, 0.238276, 2461200.5],
+  "6 Hebe": [2.42566, 0.20225, 14.73628, 138.61332, 239.73045, 44.72119, 0.260891, 2461200.5],
+  "7 Iris": [2.38575, 0.23027, 5.51857, 259.48514, 145.40713, 115.29167, 0.267465, 2461200.5],
+  "8 Flora": [2.20156, 0.15620, 5.89032, 110.84331, 285.40835, 259.26213, 0.301723, 2461200.5],
+  "9 Metis": [2.38657, 0.12249, 5.57731, 68.86580, 5.93234, 252.61679, 0.267328, 2461200.5],
+  "10 Hygiea": [3.15097, 0.10671, 3.82953, 283.11989, 312.42424, 252.03442, 0.176213, 2461200.5],
+  "16 Psyche": [2.92572, 0.13493, 3.09875, 149.97539, 230.03268, 79.76940, 0.196949, 2461200.5],
+  "28 Bellona": [2.77783, 0.14895, 9.42322, 144.14719, 343.54232, 107.96700, 0.212885, 2461200.5],
+  "29 Amphitrite": [2.55457, 0.07316, 6.07707, 356.25003, 61.93055, 193.37400, 0.241394, 2461200.5],
+  "42 Isis": [2.44482, 0.22203, 8.50335, 84.14515, 237.61697, 154.35788, 0.257829, 2461200.5],
+  "433 Eros": [1.45824, 0.22288, 10.82854, 304.26797, 178.91813, 62.51146, 0.559705, 2461200.5],
+  "1566 Icarus": [1.07799, 0.82702, 22.80164, 87.94856, 31.44439, 329.18266, 0.880602, 2461200.5],
+  "1862 Apollo": [1.47072, 0.56018, 6.35218, 35.50294, 286.09774, 224.36160, 0.552600, 2461200.5],
+  "2060 Chiron": [13.68427, 0.37977, 6.93057, 209.29613, 339.28783, 216.71990, 0.019470, 2461200.5],
+  "3200 Phaethon": [1.27146, 0.88967, 22.31053, 265.09881, 322.30017, 301.48582, 0.687460, 2461200.5],
+  "99942 Apophis": [0.92236, 0.19115, 3.34100, 203.89365, 126.67957, 175.33040, 1.112638, 2461200.5],
+  "101955 Bennu": [1.12639, 0.20375, 6.03494, 2.06087, 66.22306, 101.70395, 0.824461, 2455562.5],
+  "162173 Ryugu": [1.19092, 0.19107, 5.86644, 251.28971, 211.60899, 62.34067, 0.758369, 2461200.5],
+  "50000 Quaoar": [43.15618, 0.03520, 7.99158, 188.91912, 163.20905, 292.84876, 0.003476, 2461200.5],
+  "90377 Sedna": [543.71953, 0.85988, 11.92528, 144.50617, 311.09877, 358.59569, 0.000078, 2461200.5],
+  "90482 Orcus": [39.37687, 0.22052, 20.55681, 268.40535, 73.56849, 189.09729, 0.003989, 2461200.5],
+  "136108 Haumea": [43.06029, 0.19444, 28.20847, 121.78606, 240.69055, 223.21041, 0.003488, 2461200.5],
+  "136199 Eris": [67.93395, 0.43824, 43.92583, 36.00477, 150.79492, 211.77443, 0.001760, 2461200.5],
+  "136472 Makemake": [45.57093, 0.15889, 29.02786, 79.29483, 297.09227, 169.93800, 0.003204, 2461200.5]
+};
+
+// Halley comet: elements + perihelion epoch (JD 2446467.4 = 1986-02-09)
+const HALLEY = { a: 17.834, e: 0.96714, i: 162.2607, om: 58.420, w: 111.332, tp: 2446467.4, n: 0.013087 };
+
+const DEG = Math.PI / 180;
+function norm360(d) { d = d % 360; return d < 0 ? d + 360 : d; }
+
+// Solve Kepler's equation M = E - e*sinE (radians in/out). Robust for e<0.97.
+function solveKepler(M, e) {
+  M = ((M % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  let E = e < 0.8 ? M + e * Math.sin(M) : Math.PI;
+  for (let k = 0; k < 14; k++) {
+    const dE = (M - (E - e * Math.sin(E))) / (1 - e * Math.cos(E));
+    E += dE;
+    if (Math.abs(dE) < 1e-10) break;
+  }
+  return E;
+}
+
+// Orbital elements -> heliocentric ecliptic rectangular coords (AU).
+// el: {a, e, iDeg, omDeg, wDeg, MDeg} (mean anomaly already propagated to jd)
+function elementsToXYZ(a, e, iDeg, omDeg, wDeg, MDeg) {
+  const E = solveKepler(MDeg * DEG, e);
+  const xp = a * (Math.cos(E) - e);
+  const yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
+  const cw = Math.cos(wDeg * DEG), sw = Math.sin(wDeg * DEG);
+  const cO = Math.cos(omDeg * DEG), sO = Math.sin(omDeg * DEG);
+  const ci = Math.cos(iDeg * DEG), si = Math.sin(iDeg * DEG);
+  const x = (cw * cO - sw * sO * ci) * xp + (-sw * cO - cw * sO * ci) * yp;
+  const y = (cw * sO + sw * cO * ci) * xp + (-sw * sO + cw * cO * ci) * yp;
+  const z = (sw * si) * xp + (cw * si) * yp;
+  return { x, y, z };
+}
+
+// Planet position (JPL approximate elements, T = Julian centuries past J2000)
+function planetPosition(name, jd) {
+  const el = PLANET_ELEMENTS[name];
+  if (!el) return null;
+  const T = (jd - 2451545.0) / 36525;
+  const a = el[0] + el[6] * T, e = el[1] + el[7] * T, I = el[2] + el[8] * T;
+  const L = el[3] + el[9] * T, varpi = el[4] + el[10] * T, Om = el[5] + el[11] * T;
+  const w = varpi - Om;
+  const M = L - varpi;
+  return elementsToXYZ(a, e, I, Om, w, M);
+}
+
+// Small-body position (SBDB osculating elements at epoch)
+function smallBodyPosition(name, jd) {
+  const el = ASTEROID_ELEMENTS[name];
+  if (!el) return null;
+  const M = el[5] + el[6] * (jd - el[7]);
+  return elementsToXYZ(el[0], el[1], el[2], el[3], el[4], M);
+}
+
+// Halley position
+function halleyPosition(jd) {
+  const M = HALLEY.n * (jd - HALLEY.tp);
+  return elementsToXYZ(HALLEY.a, HALLEY.e, HALLEY.i, HALLEY.om, HALLEY.w, M);
+}
+
+// Moon geocentric ecliptic position (AU), simplified lunar theory (~arcmin-level lon)
+function moonPosition(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const Lp = norm360(218.3165 + 481267.8813 * T);
+  const D = norm360(297.8502 + 445267.1115 * T);
+  const M = norm360(357.5291 + 35999.0503 * T);
+  const Mp = norm360(134.9634 + 477198.8676 * T);
+  const F = norm360(93.2721 + 483202.0175 * T);
+  const lon = Lp + 6.289 * Math.sin(Mp * DEG) + 1.274 * Math.sin((2 * D - Mp) * DEG)
+    + 0.658 * Math.sin(2 * D * DEG) + 0.214 * Math.sin(2 * Mp * DEG)
+    - 0.186 * Math.sin(M * DEG) - 0.114 * Math.sin(2 * F * DEG);
+  const lat = 5.128 * Math.sin(F * DEG) + 0.281 * Math.sin((Mp + F) * DEG)
+    + 0.278 * Math.sin((Mp - F) * DEG) + 0.173 * Math.sin((2 * D - F) * DEG);
+  const distKm = 385001 - 20905 * Math.cos(Mp * DEG) - 3699 * Math.cos((2 * D - Mp) * DEG) - 2956 * Math.cos(2 * D * DEG);
+  const r = distKm / 149597870.7;
+  return {
+    x: r * Math.cos(lat * DEG) * Math.cos(lon * DEG),
+    y: r * Math.cos(lat * DEG) * Math.sin(lon * DEG),
+    z: r * Math.sin(lat * DEG),
+    lon, lat
+  };
+}
+
+function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
+
+
+
+        const TEXTURE_FILES = {
+    "Sun": "textures/2k_sun.jpg",
+    "Mercury": "textures/2k_mercury.jpg",
+    "Venus": "textures/2k_venus_surface.jpg",
+    "Earth": "textures/2k_earth_daymap.jpg",
+    "EarthClouds": "textures/2k_earth_clouds.jpg",
+    "Moon": "textures/2k_moon.jpg",
+    "Mars": "textures/2k_mars.jpg",
+    "Jupiter": "textures/2k_jupiter.jpg",
+    "Saturn": "textures/2k_saturn.jpg",
+    "SaturnRing": "textures/2k_saturn_ring_alpha.png",
+    "Uranus": "textures/2k_uranus.jpg",
+    "Neptune": "textures/2k_neptune.jpg",
+    "1 Ceres": "textures/2k_ceres_fictional.jpg",
+    "136108 Haumea": "textures/2k_haumea_fictional.jpg",
+    "136472 Makemake": "textures/2k_makemake_fictional.jpg",
+    "136199 Eris": "textures/2k_eris_fictional.jpg"
+};
+
+        // Ecliptic AU -> scene units (direction preserved; distance compressed like the app layout)
+        function auToScene(v) {
+            const r = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            if (r < 1e-9) return new THREE.Vector3();
+            const s = getVisualDistance(r) / r;
+            return new THREE.Vector3(v.x * s, v.z * s, -v.y * s);
+        }
+        let lastFrameMs = performance.now();
+        let craftClock = 0;
+
         // ၄။ BUILD 3D SOLAR SYSTEM & ASTEROID BELT PARTICLES
         const interactiveMeshes = [];
         const trackedBodies = [];
@@ -343,6 +525,7 @@
 
         const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(22, 32, 32), new THREE.MeshBasicMaterial({ color: 0xfff0a0 }));
         solarGroup.add(sunMesh);
+        if (TEXTURE_FILES['Sun']) loadBodyTexture(sunMesh.material, TEXTURE_FILES['Sun']);
         sunMesh.add(createLabelSprite("Sun", "#fff0a0"));
         sunMesh.userData = { name: "Sun", data: { name: "Sun", myan: "နေမင်းကြီး", a: 0, period: "-", discovery: "နေအဖွဲ့အစည်း၏ မိခင်ဗဟိုကြယ်ကြီး။", missions: "Parker Solar Probe သည် နေမျက်နှာပြင် အနီးဆုံးသို့ သွားရောက်လေ့လာနေသည်။", myth: "ဂရိတို့၏ နေနတ်ဘုရား ဟီလီယို့စ် (Helios) နှင့် အပိုလို ဖြစ်သည်။" } };
         interactiveMeshes.push(sunMesh);
@@ -357,18 +540,100 @@
             return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3 }));
         }
 
+        // ---- Texture support (files live in ./textures/ next to this file) ----
+        const texLoader = new THREE.TextureLoader();
+        function loadBodyTexture(mat, file, onLoad) {
+            texLoader.load(file,
+                (tex) => { mat.map = tex; mat.color.set(0xffffff); mat.needsUpdate = true; if (onLoad) onLoad(tex); },
+                undefined,
+                () => { /* texture missing -> keep the body's tuned solid colour */ });
+        }
+        // Procedural rocky surface for asteroids that have no real photo map:
+        // seeded greyscale noise + blotches, multiplied by the body's own colour.
+        function makeRockTexture(seedStr) {
+            let seed = 0; for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
+            const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+            const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+            const cx = cv.getContext('2d');
+            cx.fillStyle = '#b9b9b9'; cx.fillRect(0, 0, 256, 128);
+            for (let i = 0; i < 2600; i++) {
+                const g = 120 + Math.floor(rnd() * 110);
+                cx.fillStyle = `rgb(${g},${g},${g})`;
+                cx.fillRect(Math.floor(rnd() * 256), Math.floor(rnd() * 128), 1 + rnd() * 2, 1 + rnd() * 2);
+            }
+            for (let i = 0; i < 46; i++) {
+                const x = rnd() * 256, y = rnd() * 128, r = 2 + rnd() * 8, g = 90 + Math.floor(rnd() * 70);
+                const gr = cx.createRadialGradient(x, y, 0, x, y, r);
+                gr.addColorStop(0, `rgba(${g},${g},${g},0.85)`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+                cx.fillStyle = gr; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+            }
+            const t = new THREE.CanvasTexture(cv);
+            return t;
+        }
+
+        // Orbit path sampled from the SAME Kepler elements that move the body,
+        // so the body always sits exactly on its drawn path.
+        function buildOrbitLine(data, isAsteroid, color) {
+            let pts = null;
+            const pe = PLANET_ELEMENTS[data.name];
+            const ae = ASTEROID_ELEMENTS[data.name];
+            const seg = 180;
+            if (pe) {
+                const w = pe[4] - pe[5];
+                pts = [];
+                for (let i = 0; i <= seg; i++) pts.push(auToScene(elementsToXYZ(pe[0], pe[1], pe[2], pe[5], w, (i / seg) * 360)));
+            } else if (ae) {
+                pts = [];
+                for (let i = 0; i <= seg; i++) pts.push(auToScene(elementsToXYZ(ae[0], ae[1], ae[2], ae[3], ae[4], (i / seg) * 360)));
+            }
+            if (!pts) return createOrbitPath(data.a, data.e, color);
+            return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3 }));
+        }
+
         function registerBody(data, isAsteroid = false) {
-            solarGroup.add(createOrbitPath(data.a, data.e, isAsteroid ? 0x00e5ff : 0x475569));
+            solarGroup.add(buildOrbitLine(data, isAsteroid, isAsteroid ? 0x00e5ff : 0x475569));
             const bodyContainer = new THREE.Group();
 
             const geo = isAsteroid ? new THREE.DodecahedronGeometry(data.radius, 2) : new THREE.SphereGeometry(data.radius, 32, 32);
             const mat = new THREE.MeshStandardMaterial({ color: data.color || (isAsteroid ? 0x94a3b8 : 0x64748b), roughness: 0.8 });
             const mesh = new THREE.Mesh(geo, mat);
 
+            const texFile = TEXTURE_FILES[data.name];
+            if (texFile) loadBodyTexture(mat, texFile);
+            else if (isAsteroid) { mat.map = makeRockTexture(data.name); mat.needsUpdate = true; }
+
             if (data.hasRing) {
-                const ring = new THREE.Mesh(new THREE.RingGeometry(data.radius + 2.5, data.radius + 10, 48), new THREE.MeshBasicMaterial({ color: 0xd7ccc8, side: THREE.DoubleSide, transparent: true, opacity: 0.75 }));
+                const ringGeo = new THREE.RingGeometry(data.radius + 2.5, data.radius + 10, 48);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0xd7ccc8, side: THREE.DoubleSide, transparent: true, opacity: 0.75 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
                 ring.rotation.x = Math.PI / 2.3;
                 bodyContainer.add(ring);
+                if (TEXTURE_FILES['SaturnRing']) {
+                    texLoader.load(TEXTURE_FILES['SaturnRing'], (tex) => {
+                        // Remap ring UVs radially so the strip texture reads inner->outer
+                        const posA = ringGeo.attributes.position, uvA = ringGeo.attributes.uv;
+                        const inner = data.radius + 2.5, outer = data.radius + 10;
+                        for (let i = 0; i < posA.count; i++) {
+                            const px = posA.getX(i), py = posA.getY(i);
+                            const rr = Math.sqrt(px * px + py * py);
+                            uvA.setXY(i, (rr - inner) / (outer - inner), 0.5);
+                        }
+                        uvA.needsUpdate = true;
+                        ringMat.map = tex; ringMat.color.set(0xffffff); ringMat.opacity = 1; ringMat.needsUpdate = true;
+                    }, undefined, () => {});
+                }
+            }
+
+            let cloudsMesh = null;
+            if (data.hasClouds && TEXTURE_FILES['EarthClouds']) {
+                cloudsMesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(data.radius * 1.035, 32, 32),
+                    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, depthWrite: false })
+                );
+                texLoader.load(TEXTURE_FILES['EarthClouds'], (tex) => {
+                    cloudsMesh.material.alphaMap = tex; cloudsMesh.material.needsUpdate = true;
+                }, undefined, () => { cloudsMesh.visible = false; });
+                bodyContainer.add(cloudsMesh);
             }
 
             const label = createLabelSprite(data.name, isAsteroid ? "#38bdf8" : "#ffffff");
@@ -377,7 +642,7 @@
             bodyContainer.add(mesh);
 
             solarGroup.add(bodyContainer);
-            const bodyObj = { mesh: bodyContainer, label, data, angle: Math.random() * Math.PI * 2, isAsteroid };
+            const bodyObj = { mesh: bodyContainer, label, data, angle: Math.random() * Math.PI * 2, isAsteroid, clouds: cloudsMesh };
             trackedBodies.push(bodyObj);
 
             bodyContainer.userData = { name: data.name, bodyObj };
@@ -392,6 +657,236 @@
 
         planetsData.forEach(p => registerBody(p, false));
         asteroidsData.forEach(a => registerBody(a, true));
+        // ============================================================
+        // ၄-က။ MOON, COMETS, SATELLITES & SPACECRAFT (restored group)
+        // ============================================================
+        const craftOpt = document.getElementById('craft-opt');
+        const MOON_DISPLAY_DIST = 10.5; // exaggerated for visibility; direction & phase are real
+
+        function addSelectable(bodyObj, optGroup) {
+            bodyObj.mesh.userData = { name: bodyObj.data.name, bodyObj };
+            bodyObj.mesh.traverse(o => { if (o.isMesh) { o.userData = { name: bodyObj.data.name, bodyObj }; interactiveMeshes.push(o); } });
+            trackedBodies.push(bodyObj);
+            const opt = document.createElement('option');
+            opt.value = bodyObj.data.name;
+            opt.innerText = bodyObj.data.name + (bodyObj.data.myan ? ` (${bodyObj.data.myan})` : '');
+            optGroup.appendChild(opt);
+        }
+
+        // --- The Moon (real direction from Earth; real phase via the Sun light) ---
+        const moonData = { name: "Moon", myan: "လမင်းကြီး", radius: 1.3, color: 0xd6d3d1, period: "27.3 ရက်",
+            discovery: "ကမ္ဘာ့တစ်ခုတည်းသော သဘာဝဂြိုဟ်ရံလ ဖြစ်သည်။ အချင်း ၃,၄၇၄ ကီလိုမီတာ၊ ကမ္ဘာမှ ပျမ်းမျှ ၃၈၄,၄၀၀ ကီလိုမီတာ ကွာဝေးသည်။",
+            missions: "၁၉၆၉ Apollo 11 ဖြင့် လူသား ပထမဆုံး ဆင်းသက်ခဲ့သည်။ NASA Artemis အစီအစဉ်ဖြင့် လူသားများ ပြန်လည်သွားရောက်ရန် ပြင်ဆင်နေသည်။",
+            myth: "ရောမလနတ်ဘုရားမ လူးနား (Luna) နှင့် ဂရိ ဆီလီနီ (Selene) ဖြစ်သည်။" };
+        const moonContainer = new THREE.Group();
+        const moonMat = new THREE.MeshStandardMaterial({ color: moonData.color, roughness: 0.95 });
+        const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(moonData.radius, 32, 32), moonMat);
+        if (TEXTURE_FILES['Moon']) loadBodyTexture(moonMat, TEXTURE_FILES['Moon']);
+        moonContainer.add(moonMesh);
+        const moonLabel = createLabelSprite("Moon", "#ffffff");
+        moonLabel.position.y = moonData.radius + 3.2;
+        moonContainer.add(moonLabel);
+        solarGroup.add(moonContainer);
+        addSelectable({ mesh: moonContainer, label: moonLabel, data: moonData, kind: 'moon' }, planetsOpt);
+
+        // --- Halley's Comet (real Kepler orbit from its 1986 perihelion) ---
+        const halleyData = { name: "Halley Comet", myan: "ဟေလီ ကြယ်တံခွန်", radius: 0.9, period: "၇၅-၇၆ နှစ်",
+            discovery: "ဘီစီ ၂၄၀ ကတည်းက မှတ်တမ်းရှိခဲ့သည်။ Edmond Halley က ပတ်လမ်းတွက်ချက်ပြီး ၁၇၅၈ ပြန်လာမည်ကို ကြိုဟောခဲ့သည်။ နောက်ဆုံး ၁၉၈၆ ရောက်ခဲ့ပြီး ၂၀၆၁ တွင် ပြန်လာမည်။",
+            missions: "၁၉၈၆ တွင် ဥရောပ Giotto ယာဉ်က အူတိုင်ကို အနီးကပ် ဓာတ်ပုံရိုက်ခဲ့သည်။",
+            myth: "ကြယ်တံခွန်များကို ရှေးက ကပ်ဘေးအတိတ်နိမိတ်ဟု ယုံကြည်ခဲ့ကြသည်။ Mark Twain သည် ဟေလီရောက်သောနှစ် ၁၈၃၅ တွင် မွေးပြီး နောက်တစ်ကြိမ်ရောက်သော ၁၉၁၀ တွင် ကွယ်လွန်ခဲ့သည်။" };
+        const halleyGroup = new THREE.Group();
+        const halleyNucleus = new THREE.Mesh(new THREE.DodecahedronGeometry(0.85, 1), new THREE.MeshStandardMaterial({ color: 0x9aa7b1, roughness: 1 }));
+        halleyGroup.add(halleyNucleus);
+        const comaSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowingStarTex, color: 0xbfe3ff, transparent: true, opacity: 0.85 }));
+        comaSprite.scale.set(5, 5, 1);
+        halleyGroup.add(comaSprite);
+        const tailGroup = new THREE.Group();
+        const tailMesh = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1, 20, 1, true),
+            new THREE.MeshBasicMaterial({ color: 0x7cc4ff, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        tailMesh.position.y = -0.5; // apex at nucleus, opening away
+        tailGroup.add(tailMesh);
+        halleyGroup.add(tailGroup);
+        const halleyLabel = createLabelSprite("Halley Comet", "#7dd3fc");
+        halleyLabel.position.y = 3.4;
+        halleyGroup.add(halleyLabel);
+        solarGroup.add(halleyGroup);
+        const halleyOrbitPts = [];
+        for (let i = 0; i <= 180; i++) halleyOrbitPts.push(auToScene(elementsToXYZ(HALLEY.a, HALLEY.e, HALLEY.i, HALLEY.om, HALLEY.w, (i / 180) * 360)));
+        solarGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(halleyOrbitPts), new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.3 })));
+        addSelectable({ mesh: halleyGroup, label: halleyLabel, data: halleyData, kind: 'comet', tailGroup, comaSprite }, craftOpt);
+
+        // --- Spacecraft models built from primitives ---
+        function buildISS() {
+            const g = new THREE.Group();
+            const white = new THREE.MeshStandardMaterial({ color: 0xe8edf2, roughness: 0.45, metalness: 0.35 });
+            const panelMat = new THREE.MeshStandardMaterial({ color: 0x2b4acb, roughness: 0.35, metalness: 0.55 });
+            const truss = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.16, 0.16), white); g.add(truss);
+            [-2.5, 2.5].forEach(x => {
+                const p1 = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.05, 1.15), panelMat); p1.position.x = x; g.add(p1);
+                const p2 = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.05, 1.15), panelMat); p2.position.x = x * 1.55; g.add(p2);
+            });
+            [-0.7, 0.35].forEach(z => {
+                const mod = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 1.5, 14), white);
+                mod.rotation.x = Math.PI / 2; mod.position.z = z; g.add(mod);
+            });
+            return g;
+        }
+        function buildHubble() {
+            const g = new THREE.Group();
+            const silver = new THREE.MeshStandardMaterial({ color: 0xc9d1d9, roughness: 0.3, metalness: 0.7 });
+            const gold = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.35, metalness: 0.8 });
+            const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 2.3, 18), silver);
+            tube.rotation.z = Math.PI / 2; g.add(tube);
+            const aft = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.5, 18), gold);
+            aft.rotation.z = Math.PI / 2; aft.position.x = -1.25; g.add(aft);
+            const panelMat = new THREE.MeshStandardMaterial({ color: 0x8a6d1f, roughness: 0.4, metalness: 0.6 });
+            [-1, 1].forEach(s => {
+                const p = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.05, 0.85), panelMat);
+                p.position.set(0, s * 1.05, 0); g.add(p);
+            });
+            const dish = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.3, 14, 1, true), silver);
+            dish.position.set(0.3, 0.75, 0); g.add(dish);
+            return g;
+        }
+        function buildJWST() {
+            const g = new THREE.Group();
+            const gold = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.22, metalness: 0.9 });
+            const shieldMat = new THREE.MeshStandardMaterial({ color: 0xb9bdc9, roughness: 0.55, metalness: 0.45, side: THREE.DoubleSide });
+            const shield = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.06, 3.1), shieldMat);
+            shield.position.y = -1.15; shield.rotation.x = 0.1; g.add(shield);
+            const bus = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.9), new THREE.MeshStandardMaterial({ color: 0x8f97a3, roughness: 0.5, metalness: 0.6 }));
+            bus.position.y = -0.55; g.add(bus);
+            const mirrorGroup = new THREE.Group();
+            const hexGeo = new THREE.CylinderGeometry(0.52, 0.52, 0.1, 6);
+            const hexPos = [[0, 0], [0.95, 0], [-0.95, 0], [0.48, 0.83], [-0.48, 0.83], [0.48, -0.83], [-0.48, -0.83]];
+            hexPos.forEach(([hx, hy]) => {
+                const h = new THREE.Mesh(hexGeo, gold);
+                h.position.set(hx, hy, 0); mirrorGroup.add(h);
+            });
+            mirrorGroup.rotation.x = -Math.PI / 2 + 0.35;
+            mirrorGroup.position.y = 0.25;
+            g.add(mirrorGroup);
+            return g;
+        }
+
+        const issData = { name: "ISS", myan: "အပြည်ပြည်ဆိုင်ရာ အာကာသစခန်း", radius: 1.6, period: "၉၂.၈ မိနစ် (တစ်ပတ်)",
+            discovery: "၁၉၉၈ မှ စတင်တည်ဆောက်ခဲ့သော လူသားတို့၏ အကြီးဆုံး အာကာသစခန်းကြီး ဖြစ်သည်။ ကမ္ဘာကို အမြင့် ၄၀၀ ကီလိုမီတာမှ ၉၂.၈ မိနစ်လျှင် တစ်ပတ် လှည့်ပတ်နေသည်။ (ဤ app တွင် တည်နေရာမှာ ပုံစံပြ ခန့်မှန်းချက် ဖြစ်ပြီး TLE တိုက်ရိုက်ခြေရာခံမှု မဟုတ်ပါ။)",
+            missions: "၂၀၀၀ ခုနှစ်ကတည်းက လူသားများ အဆက်မပြတ် နေထိုင်လျက် ရှိသည်။",
+            myth: "ညကောင်းကင်တွင် အတောက်ပဆုံး လူလုပ်အရာဝတ္ထု — သောကြာဂြိုဟ်ပြီးလျှင် တတိယအတောက်ပဆုံး ဖြစ်သည်။" };
+        const issGroup = buildISS();
+        const issLabel = createLabelSprite("ISS", "#ffffff"); issLabel.position.y = 2.6; issGroup.add(issLabel);
+        solarGroup.add(issGroup);
+        addSelectable({ mesh: issGroup, label: issLabel, data: issData, kind: 'sat', orbitR: 7.4, incl: 51.6, speed: 0.22, phase: 1.1 }, craftOpt);
+
+        const hubbleData = { name: "Hubble Telescope", myan: "ဟပ်ဘယ် အာကာသမှန်ပြောင်း", radius: 1.5, period: "၉၅ မိနစ် (တစ်ပတ်)",
+            discovery: "၁၉၉၀ တွင် လွှတ်တင်ခဲ့ပြီး ကမ္ဘာ့အမြင့် ၅၄၇ ကီလိုမီတာမှ စကြဝဠာကို လေ့လာနေသော မှန်ပြောင်းကြီး ဖြစ်သည်။ (တည်နေရာမှာ ပုံစံပြ ခန့်မှန်းချက် ဖြစ်သည်။)",
+            missions: "ကြယ်တာရာမွေးဖွားရာများ၊ အခြားဂလက်ဆီများနှင့် စကြဝဠာ ပြန့်ကားနှုန်းကို တိုင်းတာရာတွင် သမိုင်းဝင် ဓာတ်ပုံများ ရိုက်ကူးပေးခဲ့သည်။",
+            myth: "လူသားတို့၏ 'အာကာသထဲမှ မျက်လုံး' ဟု တင်စားခေါ်ဝေါ်ကြသည်။" };
+        const hubbleGroup = buildHubble();
+        const hubbleLabel = createLabelSprite("Hubble", "#ffffff"); hubbleLabel.position.y = 2.6; hubbleGroup.add(hubbleLabel);
+        solarGroup.add(hubbleGroup);
+        addSelectable({ mesh: hubbleGroup, label: hubbleLabel, data: hubbleData, kind: 'sat', orbitR: 8.8, incl: 28.5, speed: 0.18, phase: 4.2 }, craftOpt);
+
+        const jwstData = { name: "James Webb (JWST)", myan: "ဂျိမ်းစ် ဝက်ဘ် အာကာသမှန်ပြောင်း", radius: 2.2, period: "L2 Halo (~168 ရက်)",
+            discovery: "၂၀၂၁ ဒီဇင်ဘာတွင် လွှတ်တင်ခဲ့ပြီး ကမ္ဘာမှ ကီလိုမီတာ ၁.၅ သန်း အကွာ Sun-Earth L2 အမှတ်ကို လှည့်ပတ်နေသော အင်ဖရာရက် မှန်ပြောင်းကြီး ဖြစ်သည်။ ရွှေရောင် မှန်ချပ် ၁၈ ချပ် ပါဝင်သည်။",
+            missions: "စကြဝဠာ၏ ပထမဆုံး ကြယ်တာရာများနှင့် အစောဆုံး ဂလက်ဆီများ၏ အလင်းကို ဖမ်းယူလေ့လာနေသည်။",
+            myth: "အချိန်စက်ကဲ့သို့ လွန်ခဲ့သော နှစ် ၁၃.၅ ဘီလီယံက အလင်းကို ကြည့်နိုင်သော လူသားတို့၏ အစွမ်းထက်ဆုံး မျက်လုံး ဖြစ်သည်။" };
+        const jwstGroup = buildJWST();
+        const jwstLabel = createLabelSprite("James Webb", "#fde68a"); jwstLabel.position.y = 3.0; jwstGroup.add(jwstLabel);
+        solarGroup.add(jwstGroup);
+        addSelectable({ mesh: jwstGroup, label: jwstLabel, data: jwstData, kind: 'jwst' }, craftOpt);
+
+        // ============================================================
+        // ၄-ခ။ SIMULATION TIME (real positions; default = right now)
+        // ============================================================
+        let simJD = julianDate(new Date());
+        let simPlaying = true;
+        let simSpeedDays = 1;
+        let followTarget = null;
+        const followLastPos = new THREE.Vector3();
+        const simClockEl = document.getElementById('sim-clock');
+        const simTimeInput = document.getElementById('sim-time-input');
+        const simPlayBtn = document.getElementById('sim-play-btn');
+        function fmtSimDate(jd) {
+            const d = new Date((jd - 2440587.5) * 86400000);
+            const p = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+        }
+        function syncSimUI() { if (simClockEl) simClockEl.textContent = '🕒 ' + fmtSimDate(simJD); }
+        if (simTimeInput) simTimeInput.addEventListener('change', () => {
+            const v = simTimeInput.value ? new Date(simTimeInput.value) : null;
+            if (v && !isNaN(v)) { simJD = julianDate(v); syncSimUI(); }
+        });
+        const simNowBtn = document.getElementById('sim-now-btn');
+        if (simNowBtn) simNowBtn.addEventListener('click', () => {
+            simJD = julianDate(new Date());
+            if (!simPlaying) { simPlaying = true; simPlayBtn.textContent = '⏸ Pause'; }
+            syncSimUI();
+        });
+        if (simPlayBtn) simPlayBtn.addEventListener('click', () => {
+            simPlaying = !simPlaying;
+            simPlayBtn.textContent = simPlaying ? '⏸ Pause' : '▶ Play';
+        });
+        const simSpeedSel = document.getElementById('sim-speed');
+        if (simSpeedSel) simSpeedSel.addEventListener('change', () => { simSpeedDays = parseFloat(simSpeedSel.value) || 1; });
+        syncSimUI();
+
+        // Keep the restored craft group + time controls visible only in Solar mode
+        setInterval(() => {
+            const isSolar = currentMode === 'SOLAR';
+            if (craftOpt) craftOpt.style.display = isSolar ? '' : 'none';
+            const sc = document.getElementById('sim-controls');
+            if (sc) sc.style.display = isSolar ? '' : 'none';
+        }, 600);
+
+        // ============================================================
+        // ၄-ဂ။ PER-PLANET SOUND (Cousto "Cosmic Octave" tones, WebAudio)
+        // ============================================================
+        const PLANET_TONES = { Sun: 126.22, Mercury: 141.27, Venus: 221.23, Earth: 136.10, Moon: 210.42, Mars: 144.72, Jupiter: 183.58, Saturn: 147.85, Uranus: 207.36, Neptune: 211.44, Pluto: 140.25, "Halley Comet": 168.0, "ISS": 196.0, "Hubble Telescope": 188.0, "James Webb (JWST)": 152.0 };
+        function toneFor(name) {
+            if (PLANET_TONES[name]) return PLANET_TONES[name];
+            let h = 0; const s = String(name || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+            return 148 + (h % 92);
+        }
+        let audioCtx = null, audioOn = false, toneGain = null, toneOscs = [], toneLfo = null;
+        function stopTone(fadeSec = 0.25) {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            if (toneGain) { try { toneGain.gain.cancelScheduledValues(t); toneGain.gain.setValueAtTime(toneGain.gain.value, t); toneGain.gain.linearRampToValueAtTime(0.0001, t + fadeSec); } catch (e) {} }
+            const oscs = toneOscs, oldGain = toneGain, oldLfo = toneLfo;
+            setTimeout(() => { oscs.forEach(o => { try { o.stop(); } catch (e) {} }); if (oldLfo) { try { oldLfo.stop(); } catch (e) {} } if (oldGain) { try { oldGain.disconnect(); } catch (e) {} } }, fadeSec * 1000 + 60);
+            toneOscs = []; toneGain = null; toneLfo = null;
+        }
+        function setBodyTone(name) {
+            if (!audioCtx || !audioOn) return;
+            stopTone(0.3);
+            const f = toneFor(name);
+            const t = audioCtx.currentTime;
+            const g = audioCtx.createGain(); g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.055, t + 0.9);
+            const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 880; lp.Q.value = 0.4;
+            g.connect(lp); lp.connect(audioCtx.destination);
+            const mk = (mult, amp) => {
+                const o = audioCtx.createOscillator(); o.type = 'sine'; o.frequency.value = f * mult;
+                const og = audioCtx.createGain(); og.gain.value = amp;
+                o.connect(og); og.connect(g); o.start(); return o;
+            };
+            toneOscs = [mk(1, 0.85), mk(2, 0.28), mk(2.99, 0.1)];
+            const lfo = audioCtx.createOscillator(); lfo.frequency.value = 0.07;
+            const lfoG = audioCtx.createGain(); lfoG.gain.value = 0.012;
+            lfo.connect(lfoG); lfoG.connect(g.gain); lfo.start(); toneLfo = lfo;
+            toneGain = g;
+        }
+        const audioBtn = document.getElementById('audio-toggle-btn');
+        if (audioBtn) audioBtn.addEventListener('click', async () => {
+            if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } }
+            if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch (e) {} }
+            audioOn = !audioOn;
+            audioBtn.textContent = audioOn ? '🔊 Sound: On' : '🔊 Sound: Off';
+            if (audioOn) setBodyTone(currentTarget ? currentTarget.data.name : 'Sun');
+            else stopTone(0.2);
+        });
+
 
         // MAIN ASTEROID BELT PARTICLES (3,500 Rotating Rocks)
         const beltCount = 3500;
@@ -533,9 +1028,26 @@
                 arInteractiveMeshes.push(cLabel);
             });
 
-            // C. Visible Planets as Glowing Beacons
+            // C. Visible Planets as Glowing Beacons (positions computed live for tonight)
+            const arJD = julianDate(new Date());
+            const arEarth = planetPosition('Earth', arJD);
+            function eclipticToRaDec(lonRad, latRad) {
+                const eps = 23.4392911 * Math.PI / 180;
+                const raR = Math.atan2(Math.sin(lonRad) * Math.cos(eps) - Math.tan(latRad) * Math.sin(eps), Math.cos(lonRad));
+                const decR = Math.asin(Math.sin(latRad) * Math.cos(eps) + Math.cos(latRad) * Math.sin(eps) * Math.sin(lonRad));
+                return { ra: ((raR * 180 / Math.PI) / 15 + 24) % 24, dec: decR * 180 / Math.PI };
+            }
             planetsData.forEach(p => {
-                const pos = getHorizontalVector(p.ra, p.dec, 600);
+                let raH = p.ra, decD = p.dec;
+                if (p.name !== 'Earth' && arEarth) {
+                    const hp = planetPosition(p.name, arJD);
+                    if (hp) {
+                        const gx = hp.x - arEarth.x, gy = hp.y - arEarth.y, gz = hp.z - arEarth.z;
+                        const rd = eclipticToRaDec(Math.atan2(gy, gx), Math.atan2(gz, Math.sqrt(gx * gx + gy * gy)));
+                        raH = rd.ra; decD = rd.dec;
+                    }
+                }
+                const pos = getHorizontalVector(raH, decD, 600);
                 const pSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowingStarTex, color: p.color || 0xfde047 }));
                 pSprite.scale.set(45, 45, 1);
                 pSprite.position.copy(pos);
@@ -549,8 +1061,10 @@
                 arInteractiveMeshes.push(label);
             });
 
-            // D. Moon Marker
-            const moonPos = getHorizontalVector(1.2, 12, 580);
+            // D. Moon Marker (real position for tonight)
+            const arMoon = moonPosition(arJD);
+            const arMoonRD = eclipticToRaDec(Math.atan2(arMoon.y, arMoon.x), Math.atan2(arMoon.z, Math.sqrt(arMoon.x * arMoon.x + arMoon.y * arMoon.y)));
+            const moonPos = getHorizontalVector(arMoonRD.ra, arMoonRD.dec, 580);
             const moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowingStarTex, color: 0xffffff }));
             moonSprite.scale.set(55, 55, 1);
             moonSprite.position.copy(moonPos);
@@ -711,6 +1225,8 @@
         function restoreOverview() {
             if (currentTarget && currentTarget.label) currentTarget.label.visible = true;
             currentTarget = null;
+            followTarget = null;
+            if (audioOn) setBodyTone('Sun');
             inspectionSheet.style.display = 'none';
             controls.enabled = true;
 
@@ -751,6 +1267,9 @@
                 .easing(TWEEN.Easing.Cubic.InOut)
                 .onComplete(() => {
                     controls.enabled = true;
+                    followTarget = bodyObj;
+                    followLastPos.copy(bodyObj.mesh.position);
+                    if (audioOn) setBodyTone(bodyObj.data.name);
                     showStoryDirect(bodyObj.data);
                 }).start();
         }
@@ -891,15 +1410,78 @@
             if (currentMode === 'SOLAR') {
                 sunMesh.rotation.y += 0.002;
                 beltMesh.rotation.y += 0.0003; // Rotate the 3,500 asteroids!
+                // REAL POSITIONS: advance simulation time, then place every body by Kepler
+                const frameNow = performance.now();
+                const dtSec = Math.min(0.1, (frameNow - lastFrameMs) / 1000);
+                lastFrameMs = frameNow;
+                if (simPlaying) { simJD += dtSec * simSpeedDays; syncSimUI(); }
+                craftClock += dtSec;
+                let earthObj = null;
+                trackedBodies.forEach(obj => { if (obj.data.name === 'Earth') earthObj = obj; });
                 trackedBodies.forEach(obj => {
                     const { mesh, data } = obj;
-                    obj.angle += (0.015 / Math.pow(data.a, 0.75)) * baseSpeed;
-                    const a = getVisualDistance(data.a);
-                    const b = a * Math.sqrt(Math.max(0.001, 1 - data.e * data.e));
-                    mesh.position.x = a * Math.cos(obj.angle) - (a * data.e);
-                    mesh.position.z = b * Math.sin(obj.angle);
+                    if (obj.kind === 'moon') {
+                        if (earthObj) {
+                            const mp = moonPosition(simJD);
+                            const mv = new THREE.Vector3(mp.x, mp.z, -mp.y);
+                            const len = mv.length() || 1;
+                            mesh.position.copy(earthObj.mesh.position).add(mv.multiplyScalar(MOON_DISPLAY_DIST / len));
+                        }
+                    } else if (obj.kind === 'comet') {
+                        const hp = halleyPosition(simJD);
+                        mesh.position.copy(auToScene(hp));
+                        const rAU = Math.sqrt(hp.x * hp.x + hp.y * hp.y + hp.z * hp.z) || 1;
+                        const tailLen = Math.max(3, Math.min(34, 30 / (rAU * rAU)));
+                        const away = mesh.position.clone().normalize();
+                        obj.tailGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), away);
+                        obj.tailGroup.scale.set(1 + 6 / rAU, tailLen, 1 + 6 / rAU);
+                        obj.comaSprite.material.opacity = Math.max(0.25, Math.min(0.95, 1.6 / rAU));
+                    } else if (obj.kind === 'sat') {
+                        if (earthObj) {
+                            const th = obj.phase + craftClock * obj.speed;
+                            const ci = Math.cos(obj.incl * Math.PI / 180), si = Math.sin(obj.incl * Math.PI / 180);
+                            mesh.position.set(
+                                earthObj.mesh.position.x + Math.cos(th) * obj.orbitR,
+                                earthObj.mesh.position.y + Math.sin(th) * si * obj.orbitR,
+                                earthObj.mesh.position.z + Math.sin(th) * ci * obj.orbitR
+                            );
+                            mesh.rotation.y = -th;
+                        }
+                    } else if (obj.kind === 'jwst') {
+                        if (earthObj) {
+                            const ep = earthObj.mesh.position;
+                            mesh.position.copy(ep).multiplyScalar(1.055);
+                            const haloA = (simJD % 168) / 168 * Math.PI * 2;
+                            mesh.position.y += Math.sin(haloA) * 1.6;
+                            mesh.position.x += Math.cos(haloA) * 0.9;
+                            mesh.lookAt(0, 0, 0);
+                        }
+                    } else {
+                        const p = PLANET_ELEMENTS[data.name] ? planetPosition(data.name, simJD) : smallBodyPosition(data.name, simJD);
+                        if (p) {
+                            mesh.position.copy(auToScene(p));
+                        } else {
+                            // Fallback (no elements on file): original tuned motion
+                            obj.angle += (0.015 / Math.pow(data.a, 0.75)) * baseSpeed;
+                            const a = getVisualDistance(data.a);
+                            const b = a * Math.sqrt(Math.max(0.001, 1 - data.e * data.e));
+                            mesh.position.x = a * Math.cos(obj.angle) - (a * data.e);
+                            mesh.position.z = b * Math.sin(obj.angle);
+                        }
+                    }
                     mesh.rotation.y += 0.015;
+                    if (obj.clouds) obj.clouds.rotation.y += 0.006;
                 });
+                // Camera follows the inspected body as it moves along its real orbit
+                if (followTarget) {
+                    const fp = followTarget.mesh.position;
+                    const dx = fp.x - followLastPos.x, dy = fp.y - followLastPos.y, dz = fp.z - followLastPos.z;
+                    if (dx || dy || dz) {
+                        camera.position.x += dx; camera.position.y += dy; camera.position.z += dz;
+                        controls.target.x += dx; controls.target.y += dy; controls.target.z += dz;
+                        followLastPos.copy(fp);
+                    }
+                }
                 controls.update();
             } else if (currentMode === 'CONSTELLATION') {
                 controls.update(); // Smooth orbital zoom & rotation around celestial globe!
